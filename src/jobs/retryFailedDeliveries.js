@@ -7,14 +7,14 @@ const MAX_RETRIES = 3;
 
 async function retryFailedDeliveries() {
   try {
-    console.log("🔄 Running webhook retry job...");
+    // console.log("🔄 Running webhook retry job...");
 
     const failedDeliveries = await WebhookDelivery.find({
       status: "failed",
       $or: [{ retries: { $exists: false } }, { retries: { $lt: MAX_RETRIES } }],
     });
 
-    console.log("Failed deliveries found:", failedDeliveries.length);
+    // console.log("Failed deliveries found:", failedDeliveries.length);
 
     if (failedDeliveries.length > 0) {
       const message = `

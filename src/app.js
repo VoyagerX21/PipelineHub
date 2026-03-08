@@ -1,11 +1,21 @@
 // Import the Express framework for building the web server
 const express = require('express');
+const cookieParser = require("cookie-parser");
+
 // Import webhook routes from a separate module
 const webhookRoutes = require('./routes/webhookRoutes');
 const testwebhook = require('./routes/test-webhookRoutes');
+const authRoute = require('./routes/auth');
+const events = require('./routes/events.js')
+const cors = require('cors');
 
 // Initialize the Express application
 const app = express();
+app.use(cors({
+  origin: "http://localhost:5173",
+  credentials: true
+}));
+app.use(cookieParser());
 
 // Initialization for the API documentation at route /api-docs using swagger.yaml
 const swaggerUi = require('swagger-ui-express');
@@ -25,6 +35,8 @@ app.use(express.json());
 
 // Testing webhook route
 app.use('/testwebhook', testwebhook);
+app.use('/auth', authRoute);
+app.use('/events', events);
 
 // Define a root route to confirm the webhook listener is running
 app.get('/', (req, res) => res.send('Webhook listener running events!!'));

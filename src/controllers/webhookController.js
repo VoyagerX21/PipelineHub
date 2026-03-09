@@ -6,7 +6,8 @@ const { sendNotification } = require('../services/notificationService');
 const Event2 = require("../models/Event2");
 const Commit = require("../models/Commit");
 const Repository = require('../models/Repository');
-const User = require('../models/User');
+const WebhookKey = require("../models/WebhookKey");
+const User = require("../models/User");
 const { processEvent } = require('../services/eventProcessor');
 
 // Handles incoming GitHub webhook events
@@ -134,44 +135,16 @@ const normalizeEventType = (platform, rawEvent, payload) => {
     return null;
 };
 
-const upsertUser = async (platform, payload) => {
-    let userData = {};
+const getUserFromWebhookKey = async (platform, key) => {
+    const webhook = await WebhookKey.findOne({
+        key,
+        provider: platform
+    }).populate("userId");
 
-    if (platform === "github") {
-        userData = {
-            provider: "github",
-            externalId: payload.sender.id.toString(),
-            username: payload.sender.login,
-            avatarUrl: payload.sender.avatar_url,
-            profileUrl: payload.sender.html_url
-        };
+    if (!webhook) {
+        throw new Error("Invalid webhook key");
     }
-
-    if (platform === "gitlab") {
-        userData = {
-            provider: "gitlab",
-            externalId: payload.user_id?.toString(),
-            username: payload.user_username,
-            avatarUrl: null,
-            profileUrl: null
-        };
-    }
-
-    if (platform === "bitbucket") {
-        userData = {
-            provider: "bitbucket",
-            externalId: payload.actor?.uuid,
-            username: payload.actor?.display_name,
-            avatarUrl: payload.actor?.links?.avatar?.href,
-            profileUrl: payload.actor?.links?.html?.href
-        };
-    }
-
-    return await User.findOneAndUpdate(
-        { provider: userData.provider, externalId: userData.externalId },
-        userData,
-        { upsert: true, new: true }
-    );
+    return webhook.userId;
 };
 
 const upsertRepository = async (platform, payload, ownerId) => {
@@ -313,9 +286,9 @@ const createCommitsIfAny = async (
 const handleEvent = async (req, res) => {
     try {
         const platform = req.platform;
+        const key = req.params.key;
         const secret = process.env.WEBHOOK_SECRET;
         
-        // Verify signature BEFORE parsing the body
         let isValid = false;
         let rawEvent;
 
@@ -335,7 +308,6 @@ const handleEvent = async (req, res) => {
             return res.status(401).json({msg: "Signature verification failed"});
         }
 
-        // Now parse the payload after signature verification
         let payload;
         try {
             const bodyBuffer = Buffer.isBuffer(req.body) ? req.body : Buffer.from(req.body);
@@ -358,7 +330,11 @@ const handleEvent = async (req, res) => {
             });
         }
 
-        const user = await upsertUser(platform, payload);
+        const user = await getUserFromWebhookKey(platform, key);
+        if (!user) {
+            return res.status(401).json({ message: "Invalid webhook key" });
+        }
+        
         const repository = await upsertRepository(
             platform,
             payload,

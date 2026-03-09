@@ -1,36 +1,35 @@
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 
 const userSchema = new mongoose.Schema(
-    {
-        provider: {
-            type: String,
-            enum: ["github", "gitlab", "bitbucket"],
-            required: true,
-        },
-
-        externalId: {
-            type: String,
-            required: true,
-        },
-
-        username: {
-            type: String,
-            required: true,
-        },
-        password: {
-            type: String,
-            default: ""
-        },
-
-        email: String,
-        avatarUrl: String,
-        profileUrl: String,
+  {
+    name: {
+      type: String,
+      trim: true
     },
-    {
-        timestamps: true
-    }
-);
 
-userSchema.index({ provider: 1, externalId: 1 }, { unique: true });
+    email: {
+      type: String,
+      required: true,
+      unique: true,
+      lowercase: true,
+      trim: true
+    },
+
+    avatarUrl: {
+      type: String
+    },
+
+    bio: {
+      type: String
+    },
+
+    location: {
+      type: String
+    }
+  },
+  {
+    timestamps: true
+  }
+);
 
 module.exports = mongoose.model("User", userSchema);

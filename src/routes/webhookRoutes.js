@@ -4,7 +4,7 @@ const router = express.Router();
 const webhookController = require('../controllers/webhookController');
 
 // Define route for handling incoming GitHub webhook events
-router.post('/:platform', express.raw({ type: "*/*" }), (req, res, next) =>{
+router.post('/:platform/:key', express.raw({ type: "*/*" }), (req, res, next) =>{
     const platform = req.params.platform;
     req.platform = platform;
     next();

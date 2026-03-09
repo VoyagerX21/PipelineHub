@@ -1,19 +1,11 @@
-const User = require("../models/User");
 const Event2 = require("../models/Event2");
 
 const getlist = async (req, res) => {
-    try {
-    const username = req.params.username;
-    const user = await User.findOne({ username });
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: "User not found"
-      });
-    }
+  try {
+    const userId = req.user.userId;
 
     const events = await Event2.find({
-      senderId: user._id
+      userId
     })
       .populate("repositoryId", "name")
       .populate("senderId", "username")
@@ -34,8 +26,8 @@ const getlist = async (req, res) => {
       message: "Failed to fetch events"
     });
   }
-}
+};
 
 module.exports = {
-    getlist
-}
+  getlist
+};

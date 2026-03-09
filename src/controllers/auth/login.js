@@ -1,4 +1,6 @@
 const User = require('../../models/User');
+const OAuthAccount = require('../../models/OAuthAccount');
+const WebhookKey = require('../../models/WebhookKey');
 const bcrypt = require('bcrypt');
 const jwt = require("jsonwebtoken");
 
@@ -95,7 +97,49 @@ const getMe = async (req, res) => {
     }
 };
 
+const getProviders = async (req, res) => {
+    try {
+        const userId = req.params.userId;
+        // console.log(userId);
+        const accounts = await OAuthAccount.find({ userId });
+        // console.log(accounts);
+        const providers = {
+            github: false,
+            gitlab: false,
+            bitbucket: false,
+            githubkey: "",
+            gitlabkey: "",
+            bitbucketkey: ""
+        };
+
+        for (const acc of accounts) {
+            providers[acc.provider] = true;
+
+            const key = await WebhookKey.findOne({
+                userId: userId,
+                provider: acc.provider
+            });
+
+            if (key) {
+                providers[acc.provider + "key"] = key.key;
+            }
+        }
+
+        res.json({
+            success: true,
+            providers
+        });
+
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            msg: "Failed to fetch providers"
+        });
+    }
+};
+
 module.exports = {
     handleLogin,
     getMe,
+    getProviders
 }

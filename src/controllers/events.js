@@ -2,7 +2,7 @@ const Event2 = require("../models/Event2");
 
 const getlist = async (req, res) => {
   try {
-    const userId = req.user.userId;
+    const userId = req.params.userId;
 
     const events = await Event2.find({
       userId

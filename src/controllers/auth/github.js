@@ -1,6 +1,7 @@
 const axios = require("axios");
 const jwt = require("jsonwebtoken");
-
+const crypto = require("crypto");
+const WebhookKey = require("../../models/WebhookKey");
 const User = require("../../models/User");
 const OAuthAccount = require("../../models/OAuthAccount");
 
@@ -74,6 +75,21 @@ const githubCallback = async (req, res) => {
                 profileUrl: githubUser.html_url,
                 accessToken
             });
+
+            let webhook = await WebhookKey.findOne({
+                userId: user._id,
+                provider: "github"
+            });
+
+            if (!webhook) {
+                const key = crypto.randomBytes(24).toString("hex");
+
+                await WebhookKey.create({
+                    userId: user._id,
+                    provider: "github",
+                    key
+                });
+            }
         }
 
         // Step 4: Generate JWT using internal userId

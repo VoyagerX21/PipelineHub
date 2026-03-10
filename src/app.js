@@ -6,7 +6,8 @@ const cookieParser = require("cookie-parser");
 const webhookRoutes = require('./routes/webhookRoutes');
 const testwebhook = require('./routes/test-webhookRoutes');
 const authRoute = require('./routes/auth');
-const events = require('./routes/events.js')
+const events = require('./routes/events.js');
+const users = require('./routes/users.js');
 const cors = require('cors');
 
 // Initialize the Express application
@@ -37,6 +38,7 @@ app.use(express.json());
 app.use('/testwebhook', testwebhook);
 app.use('/auth', authRoute);
 app.use('/events', events);
+app.use('/user', users);
 
 // Define a root route to confirm the webhook listener is running
 app.get('/', (req, res) => res.send('Webhook listener running events!!'));

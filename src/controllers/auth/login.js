@@ -101,6 +101,8 @@ const getProviders = async (req, res) => {
     try {
         const userId = req.params.userId;
         // console.log(userId);
+        const user = await User.findById(userId);
+        // console.log(user);
         const accounts = await OAuthAccount.find({ userId });
         // console.log(accounts);
         const providers = {
@@ -109,7 +111,9 @@ const getProviders = async (req, res) => {
             bitbucket: false,
             githubkey: "",
             gitlabkey: "",
-            bitbucketkey: ""
+            bitbucketkey: "",
+            slackChannel: user.SlackChannelName,
+            slackURL: user.SlackURL,
         };
 
         for (const acc of accounts) {

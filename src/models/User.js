@@ -25,6 +25,14 @@ const userSchema = new mongoose.Schema(
 
     location: {
       type: String
+    },
+
+    SlackURL: {
+      type: String
+    },
+    
+    SlackChannelName: {
+      type: String
     }
   },
   {

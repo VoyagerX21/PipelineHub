@@ -20,7 +20,7 @@ const triggerPipeline = async (eventDoc) => {
     pipelineRun.status = "success";
     pipelineRun.completedAt = new Date();
     pipelineRun.durationMs =
-      pipelineRun.completedAt - pipelineRun.startedAt;
+    pipelineRun.completedAt - pipelineRun.startedAt;
 
     await pipelineRun.save();
 
@@ -30,7 +30,7 @@ const triggerPipeline = async (eventDoc) => {
     pipelineRun.status = "failed";
     pipelineRun.completedAt = new Date();
     pipelineRun.durationMs =
-      pipelineRun.completedAt - pipelineRun.startedAt;
+    pipelineRun.completedAt - pipelineRun.startedAt;
 
     await pipelineRun.save();
 

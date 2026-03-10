@@ -9,10 +9,15 @@ const dispatchWebhooks = async (eventDoc, user, repo) => {
 
   const hook = await Webhook.findOne({userId: user._id});
 
+  if (!hook){
+    console.log("[DISPATCHER] No webhook configured. Skipping.")
+    return;
+  }
+
   const startTime = Date.now();
 
   try {
-    const branch = eventDoc.branch || payload.push?.changes[0]?.new?.name || "N/A";
+    const branch = eventDoc.branch || "N/A";
     const message = `
       🚀 *PipelineHub Notification*
 

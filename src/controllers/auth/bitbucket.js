@@ -10,10 +10,13 @@ const WebhookKey = require("../../models/WebhookKey");
 // STEP 1: Redirect user to Bitbucket
 const bitbucketLogin = (req, res) => {
 
+  const state = crypto.randomBytes(16).toString("hex");
   const redirectUrl =
     "https://bitbucket.org/site/oauth2/authorize" +
     `?client_id=${process.env.BITBUCKET_CLIENT_ID}` +
-    "&response_type=code";
+    `&redirect_uri=${encodeURIComponent(process.env.BITBUCKET_REDIRECT_URI)}` +
+    "&response_type=code" +
+    `&state=${state}`;
 
   res.redirect(redirectUrl);
 };

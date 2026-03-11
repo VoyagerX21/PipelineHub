@@ -8,12 +8,14 @@ const testwebhook = require('./routes/test-webhookRoutes');
 const authRoute = require('./routes/auth');
 const events = require('./routes/events.js');
 const users = require('./routes/users.js');
+const analytics = require('./routes/analytics.js');
+const repo = require('./routes/repo.js');
 const cors = require('cors');
 
 // Initialize the Express application
 const app = express();
 app.use(cors({
-  origin: "https://pipelinehubb.khakse.dev",
+  origin: "http://localhost:5173",
   credentials: true
 }));
 app.use(cookieParser());
@@ -39,6 +41,8 @@ app.use('/testwebhook', testwebhook);
 app.use('/auth', authRoute);
 app.use('/events', events);
 app.use('/user', users);
+app.use('/analytics', analytics);
+app.use('/repo', repo);
 
 // Define a root route to confirm the webhook listener is running
 app.get('/', (req, res) => res.send('Webhook listener running events!!'));

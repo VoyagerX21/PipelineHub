@@ -9,7 +9,8 @@ const githubLogin = (req, res) => {
     const redirectUrl =
         "https://github.com/login/oauth/authorize" +
         `?client_id=${process.env.GITHUB_CLIENT_ID}` +
-        "&scope=user:email";
+        "&scope=user:email" +
+        "&prompt=select_account";
 
     res.redirect(redirectUrl);
 };

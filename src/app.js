@@ -15,7 +15,7 @@ const cors = require('cors');
 // Initialize the Express application
 const app = express();
 app.use(cors({
-  origin: "http://localhost:5173",
+  origin: "https://pipelinehubb.khakse.me",
   credentials: true
 }));
 app.use(cookieParser());

@@ -4,13 +4,10 @@ const getlist = async (req, res) => {
   try {
     const userId = req.params.userId;
 
-    const events = await Event2.find({
-      userId
-    })
+    const events = await Event2.find({senderId: userId })
       .populate("repositoryId", "name")
-      .populate("senderId", "username")
-      .sort({ eventTimestamp: -1 })
-      .limit(100);
+      .populate("senderId", "name")
+      .sort({ eventTimestamp: -1 });
 
     return res.json({
       success: true,

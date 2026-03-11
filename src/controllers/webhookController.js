@@ -294,19 +294,19 @@ const handleEvent = async (req, res) => {
 
         if (platform === "github"){
             rawEvent = req.headers["x-github-event"];
-            // isValid = verifySignature.verifyGitHubSignature(req, secret);
+            isValid = verifySignature.verifyGitHubSignature(req, secret);
         } else if (platform === "gitlab"){
             rawEvent = req.headers["x-gitlab-event"];
-            // isValid = verifySignature.verifyGitLabSignature(req, secret);
+            isValid = verifySignature.verifyGitLabSignature(req, secret);
         } else if (platform === "bitbucket"){
             rawEvent = req.headers["x-event-key"];
-            // isValid = verifySignature.verifyGitHubSignature(req, secret);
+            isValid = verifySignature.verifyGitHubSignature(req, secret);
         }
         
-        // if (!isValid){
-        //     console.log(`[${platform}] Signature verification failed`);
-        //     return res.status(401).json({msg: "Signature verification failed"});
-        // }
+        if (!isValid){
+            console.log(`[${platform}] Signature verification failed`);
+            return res.status(401).json({msg: "Signature verification failed"});
+        }
 
         let payload;
         try {

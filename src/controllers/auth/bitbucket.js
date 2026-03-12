@@ -34,7 +34,8 @@ const bitbucketCallback = async (req, res) => {
       "https://bitbucket.org/site/oauth2/access_token",
       new URLSearchParams({
         grant_type: "authorization_code",
-        code
+        code,
+        redirect_uri: process.env.BITBUCKET_REDIRECT_URI
       }),
       {
         auth: {

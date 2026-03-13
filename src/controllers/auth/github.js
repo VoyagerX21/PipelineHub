@@ -18,8 +18,14 @@ const githubLogin = (req, res) => {
 const githubCallback = async (req, res) => {
     const code = req.query.code;
 
+    if (!code) {
+        return res.status(400).json({
+            msg: "Missing GitHub OAuth code"
+        });
+    }
+
     try {
-        // Step 1: Exchange code for access token
+        // STEP 1: Exchange code for access token
         const tokenResponse = await axios.post(
             "https://github.com/login/oauth/access_token",
             {
@@ -34,13 +40,25 @@ const githubCallback = async (req, res) => {
 
         const accessToken = tokenResponse.data.access_token;
 
-        // Step 2: Get GitHub user
-        const userResponse = await axios.get("https://api.github.com/user", {
-            headers: {
-                Authorization: `Bearer ${accessToken}`
-            }
-        });
+        if (!accessToken) {
+            return res.status(400).json({
+                msg: "Failed to obtain GitHub access token"
+            });
+        }
 
+        // STEP 2: Fetch GitHub user profile
+        const userResponse = await axios.get(
+            "https://api.github.com/user",
+            {
+                headers: {
+                    Authorization: `Bearer ${accessToken}`
+                }
+            }
+        );
+
+        const githubUser = userResponse.data;
+
+        // STEP 3: Fetch GitHub emails (since /user may return null)
         const emailsResponse = await axios.get(
             "https://api.github.com/user/emails",
             {
@@ -54,11 +72,13 @@ const githubCallback = async (req, res) => {
             e => e.primary && e.verified
         )?.email;
 
-        const email = primaryEmail || `${githubUser.login}@github.local`;
+        // fallback email if none returned
+        const email =
+            primaryEmail ||
+            githubUser.email ||
+            `${githubUser.login}@github.local`;
 
-        const githubUser = userResponse.data;
-
-        // Step 3: Check if OAuthAccount exists
+        // STEP 4: Check if OAuth account already exists
         let account = await OAuthAccount.findOne({
             provider: "github",
             providerUserId: githubUser.id.toString()
@@ -70,13 +90,14 @@ const githubCallback = async (req, res) => {
             // Existing OAuth account
             user = await User.findById(account.userId);
         } else {
-            // Create or find user by email
+            // Find user by email
             user = await User.findOne({ email });
 
+            // Create new user if none exists
             if (!user) {
                 user = await User.create({
                     name: githubUser.name || githubUser.login,
-                    email: githubUser.email,
+                    email: email,
                     avatarUrl: githubUser.avatar_url
                 });
             }
@@ -92,6 +113,7 @@ const githubCallback = async (req, res) => {
                 accessToken
             });
 
+            // Create webhook key if not present
             let webhook = await WebhookKey.findOne({
                 userId: user._id,
                 provider: "github"
@@ -108,28 +130,26 @@ const githubCallback = async (req, res) => {
             }
         }
 
-        // Step 4: Generate JWT using internal userId
+        // STEP 5: Generate JWT
         const token = jwt.sign(
-            {
-                userId: user._id
-            },
+            { userId: user._id },
             process.env.JWT_SECRET,
             { expiresIn: "7d" }
         );
 
         res.cookie("token", token, {
             httpOnly: true,
-            secure: false, // true in production
+            secure: false, // set true in production
             sameSite: "lax",
             maxAge: 7 * 24 * 60 * 60 * 1000
         });
 
-        res.redirect(`${process.env.FRONTEND_URL}/`);
+        return res.redirect(`${process.env.FRONTEND_URL}/`);
 
     } catch (error) {
-        console.error(error);
+        console.error("GitHub OAuth Error:", error?.response?.data || error);
 
-        res.status(500).json({
+        return res.status(500).json({
             msg: "OAuth Failed"
         });
     }

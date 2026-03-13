@@ -10,7 +10,7 @@ const githubLogin = (req, res) => {
         "https://github.com/login/oauth/authorize" +
         `?client_id=${process.env.GITHUB_CLIENT_ID}` +
         "&scope=user:email" +
-        "&prompt=select_account";
+        "&allow_signup=true";
 
     res.redirect(redirectUrl);
 };
@@ -41,6 +41,21 @@ const githubCallback = async (req, res) => {
             }
         });
 
+        const emailsResponse = await axios.get(
+            "https://api.github.com/user/emails",
+            {
+                headers: {
+                    Authorization: `Bearer ${accessToken}`
+                }
+            }
+        );
+
+        const primaryEmail = emailsResponse.data.find(
+            e => e.primary && e.verified
+        )?.email;
+
+        const email = primaryEmail || `${githubUser.login}@github.local`;
+
         const githubUser = userResponse.data;
 
         // Step 3: Check if OAuthAccount exists
@@ -56,7 +71,7 @@ const githubCallback = async (req, res) => {
             user = await User.findById(account.userId);
         } else {
             // Create or find user by email
-            user = await User.findOne({ email: githubUser.email });
+            user = await User.findOne({ email });
 
             if (!user) {
                 user = await User.create({

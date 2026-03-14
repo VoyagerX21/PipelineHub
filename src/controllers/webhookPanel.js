@@ -2,34 +2,33 @@ const WebhookDelivery = require('../models/WebhookDelivery.js');
 const Webhook = require('../models/Webhook.js');
 
 const handlegetActivity = async (req, res) => {
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
 
-    const data = await WebhookDelivery.aggregate([
-        {
-            $match: {
-                createdAt: { $gte: sevenDaysAgo }
-            }
-        },
-        {
-            $group: {
-                _id: {
-                    $dateToString: { format: "%a", date: "$createdAt" }
-                },
-                count: { $sum: 1 }
-            }
-        },
-        {
-            $project: {
-                _id: 0,
-                date: "$_id",
-                count: 1
-            }
-        }
-    ]);
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
 
-    res.json(data);
-}
+  const data = await WebhookDelivery.aggregate([
+    {
+      $match: {
+        createdAt: { $gte: sevenDaysAgo }
+      }
+    },
+    {
+      $group: {
+        _id: { $dayOfWeek: "$createdAt" }, // 1-7
+        count: { $sum: 1 }
+      }
+    },
+    {
+      $project: {
+        _id: 0,
+        day: "$_id",
+        count: 1
+      }
+    }
+  ]);
+
+  res.json(data);
+};
 
 const handlegetHealth = async (req, res) => {
     const lastSuccess = await WebhookDelivery

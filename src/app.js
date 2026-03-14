@@ -10,6 +10,7 @@ const events = require('./routes/events.js');
 const users = require('./routes/users.js');
 const analytics = require('./routes/analytics.js');
 const repo = require('./routes/repo.js');
+const webhookPanel = require('./routes/webhookPanel.js');
 const cors = require('cors');
 
 // Initialize the Express application
@@ -43,6 +44,7 @@ app.use('/events', events);
 app.use('/user', users);
 app.use('/analytics', analytics);
 app.use('/repo', repo);
+app.use('/webhookPanel', webhookPanel);
 
 // Define a root route to confirm the webhook listener is running
 app.get('/', (req, res) => res.send('Webhook listener running events!!'));

@@ -3,6 +3,7 @@ const Webhook = require("../models/Webhook");
 const WebhookDelivery = require("../models/WebhookDelivery");
 
 const dispatchWebhooks = async (eventDoc, user, repo) => {
+  console.log(eventDoc);
   console.log(`[DISPATCHER] Dispatching webhooks for ${eventDoc.type}`);
 
   console.log("Event Type:", eventDoc.type);
@@ -22,7 +23,7 @@ const dispatchWebhooks = async (eventDoc, user, repo) => {
       🚀 *PipelineHub Notification*
 
       📌 *Event:* ${eventDoc.type.toUpperCase()}
-      👤 *Triggered by:* ${user.username || "Unknown"}
+      👤 *Triggered by:* ${user.name || "Unknown"}
       📂 *Repository:* ${repo.name || "Unknown"}
       🌿 *Branch:* ${branch}
       🔗 *Platform:* ${eventDoc.provider.toUpperCase()}

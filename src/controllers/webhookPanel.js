@@ -6,7 +6,7 @@ const handlegetActivity = async (req, res) => {
   const sevenDaysAgo = new Date();
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
 
-  const data = await WebhookDelivery.aggregate([
+  const raw = await WebhookDelivery.aggregate([
     {
       $match: {
         createdAt: { $gte: sevenDaysAgo }
@@ -14,7 +14,7 @@ const handlegetActivity = async (req, res) => {
     },
     {
       $group: {
-        _id: { $dayOfWeek: "$createdAt" }, // 1-7
+        _id: { $dayOfWeek: "$createdAt" },
         count: { $sum: 1 }
       }
     },
@@ -26,8 +26,21 @@ const handlegetActivity = async (req, res) => {
       }
     }
   ]);
-  console.log(data);
-  res.json(data);
+
+  const DAYS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+
+  const result = Array.from({ length: 7 }, (_, i) => {
+    const dayIndex = i + 1;
+
+    const found = raw.find(r => r.day === dayIndex);
+
+    return {
+      date: DAYS[i],
+      count: found ? found.count : 0
+    };
+  });
+
+  res.json(result);
 };
 
 const handlegetHealth = async (req, res) => {

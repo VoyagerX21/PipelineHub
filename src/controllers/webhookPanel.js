@@ -15,28 +15,28 @@ const handlegetActivity = async (req, res) => {
         },
         {
             $group: {
-                _id: { $dayOfWeek: "$createdAt" },
+                _id: {
+                    $dateToString: {
+                        format: "%Y-%m-%d",
+                        date: "$createdAt",
+                        timezone: "Asia/Kolkata"
+                    }
+                },
                 count: { $sum: 1 }
-            }
-        },
-        {
-            $project: {
-                _id: 0,
-                day: "$_id",
-                count: 1
             }
         }
     ]);
 
-    const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-
     const result = Array.from({ length: 7 }, (_, i) => {
-        const dayIndex = i + 1;
+        const d = new Date();
+        d.setDate(d.getDate() - (6 - i));
 
-        const found = raw.find(r => r.day === dayIndex);
+        const key = d.toISOString().slice(0, 10);
+
+        const found = raw.find(r => r._id === key);
 
         return {
-            date: DAYS[i],
+            date: d.toLocaleDateString("en-US", { weekday: "short" }),
             count: found ? found.count : 0
         };
     });
@@ -108,7 +108,7 @@ const handlegetWebhooks = async (req, res) => {
         userId = decoded.userId;
     }
     const webhooks = await Webhook.find({ userId });
-    if(!webhooks){
+    if (!webhooks) {
         const result = [];
         return res.json(result);
     }

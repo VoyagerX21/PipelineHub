@@ -3,44 +3,44 @@ const Webhook = require('../models/Webhook.js');
 
 const handlegetActivity = async (req, res) => {
 
-  const sevenDaysAgo = new Date();
-  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
 
-  const raw = await WebhookDelivery.aggregate([
-    {
-      $match: {
-        createdAt: { $gte: sevenDaysAgo }
-      }
-    },
-    {
-      $group: {
-        _id: { $dayOfWeek: "$createdAt" },
-        count: { $sum: 1 }
-      }
-    },
-    {
-      $project: {
-        _id: 0,
-        day: "$_id",
-        count: 1
-      }
-    }
-  ]);
+    const raw = await WebhookDelivery.aggregate([
+        {
+            $match: {
+                createdAt: { $gte: sevenDaysAgo }
+            }
+        },
+        {
+            $group: {
+                _id: { $dayOfWeek: "$createdAt" },
+                count: { $sum: 1 }
+            }
+        },
+        {
+            $project: {
+                _id: 0,
+                day: "$_id",
+                count: 1
+            }
+        }
+    ]);
 
-  const DAYS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+    const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-  const result = Array.from({ length: 7 }, (_, i) => {
-    const dayIndex = i + 1;
+    const result = Array.from({ length: 7 }, (_, i) => {
+        const dayIndex = i + 1;
 
-    const found = raw.find(r => r.day === dayIndex);
+        const found = raw.find(r => r.day === dayIndex);
 
-    return {
-      date: DAYS[i],
-      count: found ? found.count : 0
-    };
-  });
+        return {
+            date: DAYS[i],
+            count: found ? found.count : 0
+        };
+    });
 
-  res.json(result);
+    res.json(result);
 };
 
 const handlegetHealth = async (req, res) => {
@@ -92,9 +92,26 @@ const handlegetRecent = async (req, res) => {
 }
 
 const handlegetWebhooks = async (req, res) => {
-    const userId = req.user?.userId;
-    console.log(req.user);
-    const webhooks = await Webhook.findOne({userId});
+    let userId = req.user?.userId;
+    if (!userId) {
+        const token = req.cookies?.token;
+
+        if (!token) {
+            return res.status(401).json({
+                success: false,
+                message: "Unauthorized",
+            });
+        }
+
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        userId = decoded.userId;
+    }
+    const webhooks = await Webhook.findOne({ userId });
+
+    if(!webhooks){
+        const result = [];
+        return res.json(result);
+    }
 
     const result = await Promise.all(
         webhooks.map(async (wh) => {

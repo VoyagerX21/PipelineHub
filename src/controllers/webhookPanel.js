@@ -93,7 +93,8 @@ const handlegetRecent = async (req, res) => {
 
 const handlegetWebhooks = async (req, res) => {
     const userId = req.user?.userId;
-    const webhooks = await Webhook.find({userId: userId}).lean();
+    console.log(req.user);
+    const webhooks = await Webhook.findOne({userId});
 
     const result = await Promise.all(
         webhooks.map(async (wh) => {

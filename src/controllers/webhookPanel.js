@@ -107,8 +107,7 @@ const handlegetWebhooks = async (req, res) => {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
         userId = decoded.userId;
     }
-    const webhooks = await Webhook.findOne({ userId });
-
+    const webhooks = await Webhook.find({ userId });
     if(!webhooks){
         const result = [];
         return res.json(result);

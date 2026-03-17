@@ -3,7 +3,65 @@ const Webhook = require('../models/Webhook.js');
 const jwt = require("jsonwebtoken");
 
 const handlegetActivity = async (req, res) => {
+    let userId = req.user?.userId;
+    if (!userId) {
+        const token = req.cookies?.token;
 
+        if (!token) {
+            return res.status(401).json({
+                success: false,
+                message: "Unauthorized",
+            });
+        }
+
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        userId = decoded.userId;
+    }
+
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
+
+    const webhook = await Webhook.findOne({ userId });
+
+    const raw = await WebhookDelivery.aggregate([
+        {
+            $match: {
+                createdAt: { $gte: sevenDaysAgo },
+                webhookId: webhook._id
+            },
+        },
+        {
+            $group: {
+                _id: {
+                    $dateToString: {
+                        format: "%Y-%m-%d",
+                        date: "$createdAt",
+                        timezone: "Asia/Kolkata"
+                    }
+                },
+                count: { $sum: 1 }
+            }
+        }
+    ]);
+
+    const result = Array.from({ length: 7 }, (_, i) => {
+        const d = new Date();
+        d.setDate(d.getDate() - (6 - i));
+
+        const key = d.toISOString().slice(0, 10);
+
+        const found = raw.find(r => r._id === key);
+
+        return {
+            date: d.toLocaleDateString("en-US", { weekday: "short" }),
+            count: found ? found.count : 0
+        };
+    });
+
+    res.json(result);
+};
+
+const handlegetActivityGlobal = async (req, res) => {
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
 
@@ -11,7 +69,7 @@ const handlegetActivity = async (req, res) => {
         {
             $match: {
                 createdAt: { $gte: sevenDaysAgo }
-            }
+            },
         },
         {
             $group: {
@@ -225,5 +283,6 @@ module.exports = {
     handlegetSummary,
     handlegetRecent,
     handlegetWebhooks,
-    handlegetSummaryGlobal
+    handlegetSummaryGlobal,
+    handlegetActivityGlobal
 }

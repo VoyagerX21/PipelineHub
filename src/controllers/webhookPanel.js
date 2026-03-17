@@ -155,10 +155,14 @@ const handlegetSummary = async (req, res) => {
         userId = decoded.userId;
     }
 
-    const totalSent = await WebhookDelivery.countDocuments();
+    const webhook = await Webhook.findOne({ userId });
+
+    const totalSent = await WebhookDelivery.countDocuments({
+        webhookId: webhook._id
+    });
 
     const success = await WebhookDelivery.countDocuments({
-        status: "success"
+        status: "success", webhookId: webhook._id
     });
 
     const activeWebhooks = await Webhook.countDocuments({
@@ -169,7 +173,8 @@ const handlegetSummary = async (req, res) => {
 
     const failures24h = await WebhookDelivery.countDocuments({
         status: "failed",
-        createdAt: { $gte: dayAgo }
+        createdAt: { $gte: dayAgo },
+        webhookId: webhook._id
     });
 
     const successRate = totalSent > 0

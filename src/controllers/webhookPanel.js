@@ -178,8 +178,23 @@ const handlegetHealthGlobal = async (req, res) => {
 }
 
 const handlegetRecent = async (req, res) => {
+    let userId = req.user?.userId;
+    if (!userId) {
+        const token = req.cookies?.token;
+
+        if (!token) {
+            return res.status(401).json({
+                success: false,
+                message: "Unauthorized",
+            });
+        }
+
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        userId = decoded.userId;
+    }
+    const webhook = await Webhook.findOne({ userId });
     const deliveries = await WebhookDelivery
-        .find()
+        .find({ webhookId: webhook._id })
         .sort({ createdAt: -1 })
         .limit(10)
         .lean();

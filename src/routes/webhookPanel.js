@@ -9,10 +9,10 @@ const {
 } = require('../controllers/webhookPanel.js');
 
 
-router.get('/dashboard/summary', handlegetSummary);
-router.get('/dashboard/activity', handlegetActivity);
-router.get('/dashboard/recent', handlegetRecent);
-router.get('/dashboard/health', handlegetHealth);
+router.get('/personal-dashboard/summary', handlegetSummary);
+router.get('/personal-dashboard/activity', handlegetActivity);
+router.get('/personal-dashboard/recent', handlegetRecent);
+router.get('/personal-dashboard/health', handlegetHealth);
 router.get('/webhooks', handlegetWebhooks);
 
 module.exports = router;

@@ -1,98 +1,152 @@
-openapi: 3.0.0
+openapi: 3.0.3
 info:
-  title: PipelineHub CI/CD Webhook Service
-  version: 1.1.0
+  title: PipelineHub API
+  version: 2.0.0
   description: |
-    A production-deployed backend service that listens for repository events
-    from GitHub, GitLab, and Bitbucket, verifies authenticity, and triggers
-    CI/CD pipelines via secure webhooks.
+    Complete API documentation for PipelineHub backend routes.
+    This specification documents all production routes mounted in the app,
+    excluding the dedicated test webhook route.
 
 servers:
   - url: https://pipelinehub.khakse.dev
-    description: Production server
+    description: Production
   - url: http://localhost:3000
-    description: Local development server
+    description: Local development
+
+tags:
+  - name: Health
+  - name: Webhooks
+  - name: Auth
+  - name: Users
+  - name: Events
+  - name: Analytics
+  - name: Repositories
+  - name: Webhook Panel
 
 paths:
-  /webhook/{platform}:
+  /:
+    get:
+      tags: [Health]
+      summary: Service heartbeat
+      description: Returns a static string to confirm API availability.
+      responses:
+        '200':
+          description: Service is up
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: Webhook listener running events!!
+
+  /webhook/{platform}/{key}:
     post:
-      summary: Handle VCS webhook event
+      tags: [Webhooks]
+      summary: Receive and process webhook event
       description: |
-        Accepts webhook events from GitHub, GitLab, or Bitbucket.
-        Supported events include push, pull request, and merge.
+        Accepts signed webhook events from GitHub, GitLab, or Bitbucket.
+        The endpoint verifies signature headers, normalizes event type,
+        stores event/repository data, and triggers downstream processing.
       parameters:
-        - in: path
-          name: platform
+        - $ref: '#/components/parameters/PlatformPathParam'
+        - name: key
+          in: path
           required: true
           schema:
             type: string
-            enum: [github, gitlab, bitbucket]
-          example: github
-
-        - in: header
-          name: X-GitHub-Event
-          required: false
-          schema:
-            type: string
-          example: push
-
-        - in: header
-          name: X-Hub-Signature-256
-          required: false
-          schema:
-            type: string
-          example: sha256=abc123...
-
-        - in: header
-          name: X-Gitlab-Event
-          required: false
-          schema:
-            type: string
-          example: Push Hook
-
-        - in: header
-          name: x-gitlab-token
-          required: false
-          schema:
-            type: string
-          example: supersecrettoken
-
-        - in: header
-          name: X-Event-Key
-          required: false
-          schema:
-            type: string
-          example: repo:push
-
+          description: Provider-specific webhook key assigned to the user.
+          example: 9b0d8ecf8a4bb06d8ed9b63a4de72b0fd5a7cc7f16ab0c9f
+        - $ref: '#/components/parameters/GitHubEventHeader'
+        - $ref: '#/components/parameters/GitHubSignatureHeader'
+        - $ref: '#/components/parameters/GitLabEventHeader'
+        - $ref: '#/components/parameters/GitLabTokenHeader'
+        - $ref: '#/components/parameters/BitbucketEventHeader'
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-            example:
-              repository:
-                full_name: "gaura/devify"
-              pusher:
-                name: "gaura"
-              head_commit:
-                message: "Initial commit"
-
+              additionalProperties: true
+            examples:
+              githubPush:
+                summary: GitHub push payload (truncated)
+                value:
+                  ref: refs/heads/main
+                  before: 0000000000000000000000000000000000000000
+                  after: 1111111111111111111111111111111111111111
+                  repository:
+                    id: 123456
+                    name: pipelinehub
+                    full_name: gaura/pipelinehub
+                    default_branch: main
+                    private: false
+                  sender:
+                    login: gaura
+                  commits:
+                    - id: a1b2c3d4
+                      message: feat: add webhook flow
       responses:
         '200':
-          description: Webhook processed or event ignored
+          description: Event processed or ignored
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/MessageResponse'
+                  - $ref: '#/components/schemas/EventIgnoredResponse'
+              examples:
+                processed:
+                  value:
+                    message: Event processed successfully
+                ignored:
+                  value:
+                    message: Event unknown_event ignored
+        '400':
+          description: Invalid JSON payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                msg: Invalid JSON payload
         '401':
-          description: Invalid signature or unauthorized request
+          description: Invalid signature or unauthorized webhook key
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/ErrorResponse'
+                  - $ref: '#/components/schemas/MessageResponse'
+              examples:
+                signature:
+                  value:
+                    msg: Signature verification failed
+                key:
+                  value:
+                    message: Invalid webhook key
         '500':
           description: Internal server error
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/MessageResponse'
+                  - type: object
+                    properties:
+                      error:
+                        type: string
+              example:
+                message: Internal Server Error
+                error: Invalid webhook key
 
   /webhook/status:
     get:
-      summary: Get pipeline execution history
-      description: Returns historical webhook events and pipeline trigger status.
+      tags: [Webhooks]
+      summary: List historical pipeline statuses
+      description: Returns records from the legacy Event collection.
       responses:
         '200':
-          description: Status list returned
+          description: Status records retrieved
           content:
             application/json:
               schema:
@@ -103,21 +157,924 @@ paths:
                   events:
                     type: array
                     items:
-                      type: object
-                      properties:
-                        platform:
-                          type: string
-                        repository:
-                          type: string
-                        pusher:
-                          type: string
-                        message:
-                          type: string
-                        status:
-                          type: string
-                          enum: [triggered, failed]
-                        receivedAt:
-                          type: string
-                          format: date-time
+                      $ref: '#/components/schemas/PipelineStatusItem'
+              example:
+                count: 1
+                events:
+                  - platfrom: github
+                    type: push
+                    repository: gaura/pipelinehub
+                    pusher: gaura
+                    message: feat: add webhook flow
+                    status: triggered
+                    receivedAt: 2026-03-17T09:30:00.000Z
         '500':
-          description: Server error
+          description: Failed to fetch status records
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+              example:
+                message: Server error
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Login with username/password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password]
+              properties:
+                username:
+                  type: string
+                password:
+                  type: string
+            example:
+              username: engineer01
+              password: strong-password
+      responses:
+        '200':
+          description: Logged in, auth cookie set
+          headers:
+            Set-Cookie:
+              description: JWT cookie named token
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  msg:
+                    type: string
+              example:
+                success: true
+                msg: Login successful
+        '400':
+          description: Password not set for the user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWithMessage'
+              example:
+                success: false
+                msg: Set password first
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWithMessage'
+              example:
+                success: false
+                msg: Incorrect username or password
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWithMessage'
+              example:
+                success: false
+                msg: No such Engineer exists
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWithMessage'
+              example:
+                success: false
+                msg: Internal server error
+
+  /auth/github:
+    get:
+      tags: [Auth]
+      summary: Start GitHub OAuth
+      responses:
+        '302':
+          description: Redirects to GitHub authorization page
+
+  /auth/github/callback:
+    get:
+      tags: [Auth]
+      summary: GitHub OAuth callback
+      parameters:
+        - name: code
+          in: query
+          required: false
+          schema:
+            type: string
+          description: OAuth authorization code from GitHub.
+      responses:
+        '302':
+          description: OAuth successful; redirects to frontend and sets auth cookie
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+        '400':
+          description: Missing code or failed token exchange
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+              examples:
+                missingCode:
+                  value:
+                    msg: Missing GitHub OAuth code
+                tokenError:
+                  value:
+                    msg: Failed to obtain GitHub access token
+        '500':
+          description: OAuth failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+              example:
+                msg: OAuth Failed
+
+  /auth/gitlab:
+    get:
+      tags: [Auth]
+      summary: Start GitLab OAuth
+      responses:
+        '302':
+          description: Redirects to GitLab authorization page
+
+  /auth/gitlab/callback:
+    get:
+      tags: [Auth]
+      summary: GitLab OAuth callback
+      parameters:
+        - name: code
+          in: query
+          required: false
+          schema:
+            type: string
+          description: OAuth authorization code from GitLab.
+      responses:
+        '302':
+          description: OAuth successful; redirects to frontend and sets auth cookie
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+        '500':
+          description: OAuth failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+              example:
+                msg: GitLab OAuth Failed
+
+  /auth/bitbucket:
+    get:
+      tags: [Auth]
+      summary: Start Bitbucket OAuth
+      responses:
+        '302':
+          description: Redirects to Bitbucket authorization page
+
+  /auth/bitbucket/callback:
+    get:
+      tags: [Auth]
+      summary: Bitbucket OAuth callback
+      parameters:
+        - name: code
+          in: query
+          required: false
+          schema:
+            type: string
+          description: OAuth authorization code from Bitbucket.
+      responses:
+        '302':
+          description: OAuth successful; redirects to frontend and sets auth cookie
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+        '500':
+          description: OAuth failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+              example:
+                msg: Bitbucket OAuth Failed
+
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: Get authenticated user from cookie
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Authenticated user returned
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  authenticated:
+                    type: boolean
+                  user:
+                    $ref: '#/components/schemas/User'
+              example:
+                success: true
+                authenticated: true
+                user:
+                  _id: 65f1e9a2aa5f7d119f75f100
+                  name: Gourav
+                  username: engineer01
+                  email: khakse2gaurav2003@gmail.com
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  authenticated:
+                    type: boolean
+              example:
+                success: false
+                authenticated: false
+
+  /auth/providers/{userId}:
+    get:
+      tags: [Auth]
+      summary: Get linked provider status and webhook keys for a user
+      parameters:
+        - $ref: '#/components/parameters/UserIdPathParam'
+      responses:
+        '200':
+          description: Provider information returned
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  providers:
+                    type: object
+                    additionalProperties: true
+              example:
+                success: true
+                providers:
+                  github: true
+                  gitlab: false
+                  bitbucket: true
+                  githubkey: 29b4031c9e0a40edaf66f66ac77b7f9244d56a6ad2be0b16
+                  gitlabkey: ""
+                  bitbucketkey: 5427bf6e98efbaf5900ce87ca0f46eb901df1f95b1f0c7ce
+                  slackChannel: pipeline-alerts
+                  slackURL: https://hooks.slack.com/services/T000/B000/XXXXXXXX
+        '500':
+          description: Failed to fetch providers
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWithMessage'
+              example:
+                success: false
+                msg: Failed to fetch providers
+
+  /user/updateConfig/{userId}:
+    post:
+      tags: [Users]
+      summary: Update user Slack/webhook configuration
+      parameters:
+        - $ref: '#/components/parameters/UserIdPathParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                slackChannel:
+                  type: string
+                  nullable: true
+                slackToken:
+                  type: string
+                  nullable: true
+            examples:
+              setWebhook:
+                value:
+                  slackChannel: pipeline-alerts
+                  slackToken: https://hooks.slack.com/services/T000/B000/XXXXXXXX
+              removeWebhook:
+                value:
+                  slackChannel: ""
+                  slackToken: ""
+      responses:
+        '200':
+          description: Configuration updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+              example:
+                success: true
+                message: Configuration saved successfully
+        '400':
+          description: Invalid Slack webhook URL
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWithMessage'
+              example:
+                success: false
+                msg: Invalid Slack webhook URL
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWithMessage'
+              example:
+                success: false
+                msg: User not found
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWithMessage'
+              example:
+                success: false
+                msg: Internal server error
+
+  /events/list/{userId}:
+    get:
+      tags: [Events]
+      summary: List events for a specific user
+      parameters:
+        - $ref: '#/components/parameters/UserIdPathParam'
+      responses:
+        '200':
+          description: Events fetched successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  count:
+                    type: integer
+                  events:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Event2'
+              example:
+                success: true
+                count: 1
+                events:
+                  - _id: 65f1d7acaa5f7d119f75f010
+                    provider: github
+                    type: push
+                    rawEvent: push
+                    branch: refs/heads/main
+                    before: abc123
+                    after: def456
+                    senderId:
+                      _id: 65f1e9a2aa5f7d119f75f100
+                      name: Gourav
+                    repositoryId:
+                      _id: 65f1d1a7aa5f7d119f75f001
+                      name: pipelinehub
+                    eventTimestamp: 2026-03-17T09:30:00.000Z
+        '500':
+          description: Failed to fetch events
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+              example:
+                success: false
+                message: Failed to fetch events
+
+  /analytics/user:
+    get:
+      tags: [Analytics]
+      summary: Get analytics for authenticated user
+      description: |
+        Uses req.user when available; otherwise expects a JWT token in cookie.
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Analytics data returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalyticsResponse'
+              example:
+                totalEvents: 124
+                activeRepos: 6
+                contributors: 11
+                platforms:
+                  github: 98
+                  gitlab: 20
+                  bitbucket: 6
+                types:
+                  push: 89
+                  pull_request: 22
+                  merge: 13
+                  pull: 0
+                topActors:
+                  - name: Gourav
+                    count: 40
+                  - name: engineer01@example.com
+                    count: 19
+        '401':
+          description: Missing/invalid token cookie
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWithMessage'
+              example:
+                success: false
+                message: Unauthorized
+        '500':
+          description: Failed to fetch analytics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWithMessage'
+              example:
+                success: false
+                message: Failed to fetch analytics
+
+  /repo/list/{userId}:
+    get:
+      tags: [Repositories]
+      summary: List repositories for a user
+      parameters:
+        - $ref: '#/components/parameters/UserIdPathParam'
+      responses:
+        '200':
+          description: Repositories fetched
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  repos:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Repository'
+              example:
+                success: true
+                repos:
+                  - _id: 65f1d1a7aa5f7d119f75f001
+                    provider: github
+                    externalRepoId: "123456"
+                    name: pipelinehub
+                    fullName: gaura/pipelinehub
+                    ownerId: 65f1e9a2aa5f7d119f75f100
+                    defaultBranch: main
+                    isPrivate: false
+        '500':
+          description: Unexpected error (controller currently logs without JSON response)
+
+  /webhookPanel/dashboard/summary:
+    get:
+      tags: [Webhook Panel]
+      summary: Get dashboard summary metrics
+      responses:
+        '200':
+          description: Summary returned
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  totalSent:
+                    type: integer
+                  successRate:
+                    type: string
+                    example: 98.2%
+                  activeWebhooks:
+                    type: integer
+                  failures24h:
+                    type: integer
+              example:
+                totalSent: 150
+                successRate: 96.7%
+                activeWebhooks: 3
+                failures24h: 2
+
+  /webhookPanel/dashboard/activity:
+    get:
+      tags: [Webhook Panel]
+      summary: Get last 7 days delivery activity
+      responses:
+        '200':
+          description: Daily activity returned
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    date:
+                      type: string
+                      description: Weekday label in en-US locale.
+                    count:
+                      type: integer
+              example:
+                - date: Wed
+                  count: 4
+                - date: Thu
+                  count: 9
+                - date: Fri
+                  count: 7
+
+  /webhookPanel/dashboard/recent:
+    get:
+      tags: [Webhook Panel]
+      summary: Get latest webhook deliveries
+      responses:
+        '200':
+          description: Recent deliveries returned
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RecentDelivery'
+              example:
+                - id: 65f202f4aa5f7d119f760001
+                  event: push
+                  status: success
+                  time: 2026-03-17T09:41:12.123Z
+                  channel: slack
+
+  /webhookPanel/dashboard/health:
+    get:
+      tags: [Webhook Panel]
+      summary: Get webhook system health
+      responses:
+        '200':
+          description: Health status returned
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [healthy, degraded]
+                  lastNotification:
+                    type: string
+                    format: date-time
+                    nullable: true
+                  lastFailure:
+                    type: string
+                    format: date-time
+                    nullable: true
+                  avgResponseMs:
+                    type: number
+                    nullable: true
+              example:
+                status: healthy
+                lastNotification: 2026-03-17T09:35:00.000Z
+                lastFailure: null
+                avgResponseMs: 212.77
+
+  /webhookPanel/webhooks:
+    get:
+      tags: [Webhook Panel]
+      summary: Get current user's registered webhooks and delivery stats
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Webhook list returned
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PanelWebhook'
+              example:
+                - id: 65f20595aa5f7d119f760010
+                  name: slack-alerts
+                  url: https://hooks.slack.com/services/T000/B000/XXXXXXXX
+                  events:
+                    - push
+                    - merge
+                  status: active
+                  deliveries: 42
+                  lastDelivery: 2026-03-17T09:38:10.000Z
+        '401':
+          description: Missing token cookie
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWithMessage'
+              example:
+                success: false
+                message: Unauthorized
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: token
+
+  parameters:
+    PlatformPathParam:
+      name: platform
+      in: path
+      required: true
+      schema:
+        type: string
+        enum: [github, gitlab, bitbucket]
+      example: github
+    UserIdPathParam:
+      name: userId
+      in: path
+      required: true
+      schema:
+        type: string
+      description: MongoDB ObjectId of the user.
+      example: 65f1e9a2aa5f7d119f75f100
+    GitHubEventHeader:
+      name: X-GitHub-Event
+      in: header
+      required: false
+      schema:
+        type: string
+      example: push
+    GitHubSignatureHeader:
+      name: X-Hub-Signature-256
+      in: header
+      required: false
+      schema:
+        type: string
+      example: sha256=abcdef1234567890
+    GitLabEventHeader:
+      name: X-Gitlab-Event
+      in: header
+      required: false
+      schema:
+        type: string
+      example: Push Hook
+    GitLabTokenHeader:
+      name: x-gitlab-token
+      in: header
+      required: false
+      schema:
+        type: string
+      example: supersecrettoken
+    BitbucketEventHeader:
+      name: X-Event-Key
+      in: header
+      required: false
+      schema:
+        type: string
+      example: repo:push
+
+  schemas:
+    MessageResponse:
+      type: object
+      properties:
+        message:
+          type: string
+      required: [message]
+
+    ErrorResponse:
+      type: object
+      properties:
+        msg:
+          type: string
+      required: [msg]
+
+    SuccessWithMessage:
+      type: object
+      properties:
+        success:
+          type: boolean
+        msg:
+          type: string
+        message:
+          type: string
+
+    EventIgnoredResponse:
+      type: object
+      properties:
+        message:
+          type: string
+      example:
+        message: Event pullrequest:fulfilled ignored
+
+    User:
+      type: object
+      properties:
+        _id:
+          type: string
+        name:
+          type: string
+        username:
+          type: string
+        email:
+          type: string
+        avatarUrl:
+          type: string
+          nullable: true
+
+    PipelineStatusItem:
+      type: object
+      properties:
+        platfrom:
+          type: string
+          description: Field name is intentionally spelled as returned by API.
+        type:
+          type: string
+        repository:
+          type: string
+        pusher:
+          type: string
+        message:
+          type: string
+        status:
+          type: string
+          enum: [triggered, failed]
+        receivedAt:
+          type: string
+          format: date-time
+
+    Repository:
+      type: object
+      properties:
+        _id:
+          type: string
+        provider:
+          type: string
+          enum: [github, gitlab, bitbucket]
+        externalRepoId:
+          type: string
+        name:
+          type: string
+        fullName:
+          type: string
+        ownerId:
+          type: string
+        defaultBranch:
+          type: string
+          nullable: true
+        isPrivate:
+          type: boolean
+
+    Event2:
+      type: object
+      properties:
+        _id:
+          type: string
+        provider:
+          type: string
+          enum: [github, gitlab, bitbucket]
+        type:
+          type: string
+          enum: [push, pull_request, merge, pipeline, tag_push]
+        rawEvent:
+          type: string
+        repositoryId:
+          oneOf:
+            - type: string
+            - type: object
+              properties:
+                _id:
+                  type: string
+                name:
+                  type: string
+        senderId:
+          oneOf:
+            - type: string
+            - type: object
+              properties:
+                _id:
+                  type: string
+                name:
+                  type: string
+        branch:
+          type: string
+          nullable: true
+        before:
+          type: string
+          nullable: true
+        after:
+          type: string
+          nullable: true
+        eventTimestamp:
+          type: string
+          format: date-time
+        rawPayload:
+          type: object
+          additionalProperties: true
+
+    AnalyticsResponse:
+      type: object
+      properties:
+        totalEvents:
+          type: integer
+        activeRepos:
+          type: integer
+        contributors:
+          type: integer
+        platforms:
+          type: object
+          properties:
+            github:
+              type: integer
+            gitlab:
+              type: integer
+            bitbucket:
+              type: integer
+        types:
+          type: object
+          properties:
+            push:
+              type: integer
+            pull_request:
+              type: integer
+            merge:
+              type: integer
+            pull:
+              type: integer
+        topActors:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              count:
+                type: integer
+
+    RecentDelivery:
+      type: object
+      properties:
+        id:
+          type: string
+        event:
+          type: string
+        status:
+          type: string
+          enum: [success, failed]
+        time:
+          type: string
+          format: date-time
+        channel:
+          type: string
+          nullable: true
+
+    PanelWebhook:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        url:
+          type: string
+          nullable: true
+        events:
+          type: array
+          items:
+            type: string
+        status:
+          type: string
+        deliveries:
+          type: integer
+        lastDelivery:
+          type: string
+          format: date-time
+          nullable: true

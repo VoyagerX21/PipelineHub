@@ -140,6 +140,21 @@ const handlegetWebhooks = async (req, res) => {
 }
 
 const handlegetSummary = async (req, res) => {
+    let userId = req.user?.userId;
+    if (!userId) {
+        const token = req.cookies?.token;
+
+        if (!token) {
+            return res.status(401).json({
+                success: false,
+                message: "Unauthorized",
+            });
+        }
+
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        userId = decoded.userId;
+    }
+
     const totalSent = await WebhookDelivery.countDocuments();
 
     const success = await WebhookDelivery.countDocuments({
@@ -147,7 +162,7 @@ const handlegetSummary = async (req, res) => {
     });
 
     const activeWebhooks = await Webhook.countDocuments({
-        status: "active"
+        isEnabled: true, userId
     });
 
     const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);

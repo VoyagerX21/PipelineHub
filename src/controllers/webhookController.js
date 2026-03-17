@@ -383,26 +383,41 @@ const handleEvent = async (req, res) => {
 // Retrieves pipeline event history
 const getPipelineStatus = async (req, res) => {
     try {
-        // Fetch all events, sorted by most recent
-        const events = await Event.find().sort({ createdAt: -1 });
+        // Fetch all events (latest first) + populate useful refs
+        const events = await Event2
+            .find()
+            .sort({ eventTimestamp: -1 })
+            .populate("repositoryId", "name")   // only get repo name
+            .populate("senderId", "username");  // only get user name
+
         return res.status(200).json({
             count: events.length,
             events: events.map(e => ({
-                platfrom: e.platform,
-                type: e.eventType,
-                repository: e.repository,
-                pusher: e.pusher,
-                message: e.message,
-                status: e.status,
-                receivedAt: e.receivedAt
+                provider: e.provider,
+                type: e.type,
+                repository: e.repositoryId?.name || null,
+                sender: e.senderId?.username || null,
+
+                branch: e.branch,
+                before: e.before,
+                after: e.after,
+
+                forced: e.forced,
+                created: e.created,
+                deleted: e.deleted,
+
+                slackStatus: e.slackStatus,
+
+                eventTimestamp: e.eventTimestamp,
+                createdAt: e.createdAt
             }))
         });
-    }
-    catch (err) {
+
+    } catch (err) {
         console.error("Failed to fetch status: ", err);
         return res.status(500).json({ message: "Server error" });
     }
-}
+};
 
 // Export controller functions
 module.exports = { handleGitHubWebhook, getPipelineStatus, handleEvent };

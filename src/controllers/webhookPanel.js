@@ -103,6 +103,51 @@ const handlegetActivityGlobal = async (req, res) => {
 };
 
 const handlegetHealth = async (req, res) => {
+    let userId = req.user?.userId;
+    if (!userId) {
+        const token = req.cookies?.token;
+
+        if (!token) {
+            return res.status(401).json({
+                success: false,
+                message: "Unauthorized",
+            });
+        }
+
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        userId = decoded.userId;
+    }
+    const webhook = await Webhook.findOne({ userId });
+    const lastSuccess = await WebhookDelivery
+        .findOne({ status: "success", webhookId: webhook._id })
+        .sort({ createdAt: -1 });
+
+    const lastFailure = await WebhookDelivery
+        .findOne({ status: "failed", webhookId: webhook._id })
+        .sort({ createdAt: -1 });
+
+    const avg = await WebhookDelivery.aggregate([
+        { $match: { responseTime: { $exists: true }, webhookId: webhook._id } },
+        {
+            $group: {
+                _id: null,
+                avgResponseMs: { $avg: "$responseTime" }
+            }
+        }
+    ]);
+
+    res.json({
+        status: lastFailure && Date.now() - lastFailure.createdAt < 5 * 60 * 1000
+            ? "degraded"
+            : "healthy",
+
+        lastNotification: lastSuccess?.createdAt || null,
+        lastFailure: lastFailure?.createdAt || null,
+        avgResponseMs: avg[0]?.avgResponseMs || null
+    });
+}
+
+const handlegetHealthGlobal = async (req, res) => {
     const lastSuccess = await WebhookDelivery
         .findOne({ status: "success" })
         .sort({ createdAt: -1 });
@@ -284,5 +329,6 @@ module.exports = {
     handlegetRecent,
     handlegetWebhooks,
     handlegetSummaryGlobal,
-    handlegetActivityGlobal
+    handlegetActivityGlobal,
+    handlegetHealthGlobal
 }

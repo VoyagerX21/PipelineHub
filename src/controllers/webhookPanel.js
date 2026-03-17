@@ -184,10 +184,41 @@ const handlegetSummary = async (req, res) => {
     });
 }
 
+const handlegetSummaryGlobal = async (req, res) => {
+    const totalSent = await WebhookDelivery.countDocuments();
+
+    const success = await WebhookDelivery.countDocuments({
+        status: "success"
+    });
+
+    const activeWebhooks = await Webhook.countDocuments({
+        isEnabled: true
+    });
+
+    const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+    const failures24h = await WebhookDelivery.countDocuments({
+        status: "failed",
+        createdAt: { $gte: dayAgo }
+    });
+
+    const successRate = totalSent > 0
+        ? ((success / totalSent) * 100).toFixed(1) + "%"
+        : "0%";
+
+    res.json({
+        totalSent,
+        successRate,
+        activeWebhooks,
+        failures24h
+    });
+}
+
 module.exports = {
     handlegetActivity,
     handlegetHealth,
     handlegetSummary,
     handlegetRecent,
-    handlegetWebhooks
+    handlegetWebhooks,
+    handlegetSummaryGlobal
 }

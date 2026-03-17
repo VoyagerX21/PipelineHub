@@ -5,7 +5,8 @@ const {
     handlegetHealth,
     handlegetRecent,
     handlegetSummary,
-    handlegetWebhooks
+    handlegetWebhooks,
+    handlegetSummaryGlobal
 } = require('../controllers/webhookPanel.js');
 
 
@@ -14,5 +15,6 @@ router.get('/personal-dashboard/activity', handlegetActivity);
 router.get('/personal-dashboard/recent', handlegetRecent);
 router.get('/personal-dashboard/health', handlegetHealth);
 router.get('/webhooks', handlegetWebhooks);
+router.get('/dashboard/summary', handlegetSummaryGlobal);
 
 module.exports = router;

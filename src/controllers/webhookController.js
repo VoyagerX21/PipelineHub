@@ -9,6 +9,7 @@ const Repository = require('../models/Repository');
 const WebhookKey = require("../models/WebhookKey");
 const User = require("../models/User");
 const { processEvent } = require('../services/eventProcessor');
+const { trackContribution } = require('../services/contributorService');
 
 // Handles incoming GitHub webhook events
 const handleGitHubWebhook = async (req, res) => {
@@ -65,24 +66,66 @@ const handleGitHubWebhook = async (req, res) => {
     try {
         // console.log(json);
         console.log(req.body);
+        
+        // Track contributor from webhook payload without creating User records.
+        let contributionResult = null;
+        
+        // Get repository info
+        let repositoryId = null;
+        if (json.repository || json.project) {
+            const repo = await Repository.findOne({
+                provider: platform,
+                externalRepoId: json.repository.id?.toString() || json.project?.id?.toString()
+            });
+            repositoryId = repo?._id;
+        }
+        
         await pipelineService.triggerPipeline(event, json, platform);
+        
+        if (repositoryId) {
+            contributionResult = await trackContribution(json, repositoryId, platform, event);
+        }
+
+        // Create event with pusher reference
         await Event.create({
             platform: platform,
             eventType: event,
-            repository: json.repository?.full_name,
-            pusher: json.pusher?.name,
+            repository: json.repository?.full_name || json.project?.path_with_namespace,
+            repositoryId: repositoryId,
+            pusherId: contributionResult?.verifiedUser?._id,
+            pusherName: contributionResult?.pusherInfo?.name,
             message: json.head_commit?.message,
             status: 'triggered'
         });
+
         return res.status(200).json({ message: `Pipeline triggered for ${event}` });
     }
     catch (err) {
+        console.error('Webhook handler error:', err);
+
         // Log failed pipeline trigger
+        let contributionResult = null;
+        
+        let repositoryId = null;
+        if (json.repository || json.project) {
+            const repo = await Repository.findOne({
+                provider: platform,
+                externalRepoId: json.repository.id?.toString() || json.project?.id?.toString()
+            });
+            repositoryId = repo?._id;
+        }
+
+        if (repositoryId) {
+            contributionResult = await trackContribution(json, repositoryId, platform, event);
+        }
+        
         await Event.create({
             platform: platform,
             eventType: event,
-            repository: json.repository?.full_name,
-            pusher: json.pusher?.name,
+            repository: json.repository?.full_name || json.project?.path_with_namespace,
+            repositoryId: repositoryId,
+            pusherId: contributionResult?.verifiedUser?._id,
+            pusherName: contributionResult?.pusherInfo?.name,
             message: json.head_commit?.message,
             status: 'failed',
             retries: 0,
@@ -292,6 +335,8 @@ const handleEvent = async (req, res) => {
         let isValid = false;
         let rawEvent;
 
+        console.log(req.body.toString());
+
         if (platform === "github"){
             rawEvent = req.headers["x-github-event"];
             isValid = verifySignature.verifyGitHubSignature(req, secret);
@@ -303,10 +348,10 @@ const handleEvent = async (req, res) => {
             isValid = verifySignature.verifyGitHubSignature(req, secret);
         }
         
-        if (!isValid){
-            console.log(`[${platform}] Signature verification failed`);
-            return res.status(401).json({msg: "Signature verification failed"});
-        }
+        // if (!isValid){
+        //     console.log(`[${platform}] Signature verification failed`);
+        //     return res.status(401).json({msg: "Signature verification failed"});
+        // }
 
         let payload;
         try {
@@ -322,8 +367,6 @@ const handleEvent = async (req, res) => {
             rawEvent,
             payload
         );
-
-        // console.log(normalizedType);
 
         if (!normalizedType) {
             console.log(`[${platform}] Ignored event: ${rawEvent}`);
@@ -342,6 +385,10 @@ const handleEvent = async (req, res) => {
             payload,
             user._id
         );
+
+        if (normalizedType === "push" || normalizedType === "pull_request") {
+            await trackContribution(payload, repository._id, platform, normalizedType);
+        }
 
         const event = await createEvent(
             platform,

@@ -4,6 +4,7 @@ const crypto = require("crypto");
 const WebhookKey = require("../../models/WebhookKey");
 const User = require("../../models/User");
 const OAuthAccount = require("../../models/OAuthAccount");
+const { verifyContributorsForOAuthUser } = require("../../services/contributorService");
 
 const githubLogin = (req, res) => {
     const redirectUrl =
@@ -129,6 +130,16 @@ const githubCallback = async (req, res) => {
                 });
             }
         }
+
+        await verifyContributorsForOAuthUser({
+            userId: user._id,
+            platform: "github",
+            providerUserId: githubUser.id.toString(),
+            username: githubUser.login,
+            email,
+            avatarUrl: githubUser.avatar_url,
+            name: githubUser.name || githubUser.login
+        });
 
         // STEP 5: Generate JWT
         const token = jwt.sign(

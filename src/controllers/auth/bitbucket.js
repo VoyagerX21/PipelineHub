@@ -5,6 +5,7 @@ const crypto = require("crypto");
 const User = require("../../models/User");
 const OAuthAccount = require("../../models/OAuthAccount");
 const WebhookKey = require("../../models/WebhookKey");
+const { verifyContributorsForOAuthUser } = require("../../services/contributorService");
 
 
 // STEP 1: Redirect user to Bitbucket
@@ -129,6 +130,16 @@ const bitbucketCallback = async (req, res) => {
 
       }
     }
+
+    await verifyContributorsForOAuthUser({
+      userId: user._id,
+      platform: "bitbucket",
+      providerUserId: bitbucketUser.uuid,
+      username: bitbucketUser.username || bitbucketUser.display_name,
+      email: email || undefined,
+      avatarUrl: bitbucketUser.links?.avatar?.href,
+      name: bitbucketUser.display_name
+    });
 
     // Generate JWT
     const token = jwt.sign(

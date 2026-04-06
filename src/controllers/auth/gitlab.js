@@ -5,6 +5,7 @@ const crypto = require("crypto");
 const User = require("../../models/User");
 const OAuthAccount = require("../../models/OAuthAccount");
 const WebhookKey = require("../../models/WebhookKey");
+const { verifyContributorsForOAuthUser } = require("../../services/contributorService");
 
 const gitlabLogin = async (req, res) => {
     const redirectUrl =
@@ -97,6 +98,16 @@ const gitlabCallback = async (req, res) => {
                 });
             }
         }
+
+        await verifyContributorsForOAuthUser({
+            userId: user._id,
+            platform: "gitlab",
+            providerUserId: gitlabUser.id.toString(),
+            username: gitlabUser.username,
+            email: gitlabUser.email,
+            avatarUrl: gitlabUser.avatar_url,
+            name: gitlabUser.name || gitlabUser.username
+        });
 
         // Generate JWT
         const token = jwt.sign(

@@ -4,7 +4,16 @@ const eventSchema = new mongoose.Schema({
   platform: String,
   eventType: String,
   repository: String,
-  pusher: String,
+  repositoryId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Repository'
+  },
+  pusherId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  },
+  // Keep pusher name for backward compatibility and quick reference
+  pusherName: String,
   message: String,
   status: {
     type: String,

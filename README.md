@@ -53,14 +53,7 @@ npm install
 
 ### 3. Configure Environment Variables
 
-Create a `.env` file based on `.env.example`:
-
-```env
-PORT=3000
-MONGODB_URI=your_mongodb_connection_string
-WEBHOOK_SECRET=your_webhook_secret
-SLACK_WEBHOOK_URL=your_slack_incoming_webhook_url
-```
+Update `.env.example` with your values, or copy it to `.env` if you prefer to keep a local override file.
 
 ### 4. Run the Server
 
@@ -87,6 +80,18 @@ https://pipelinehub.khakse.dev
 ```
 
 You can directly attach this service as a webhook endpoint in **your own GitHub / GitLab / Bitbucket repositories**.
+
+---
+
+## 🐳 Run with Docker
+
+The repository includes a Docker Compose setup that runs the API and a local MongoDB instance.
+
+```bash
+docker compose up --build
+```
+
+The app reads runtime settings from `.env.example`, so the container stays configuration-driven. Fill in the OAuth, JWT, and Slack values before using those routes.
 
 > ⚠️ **Important Note**
 >

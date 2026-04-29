@@ -1,23 +1,18 @@
-# Use official Node.js LTS image
-FROM node:18
+FROM node:22-slim
 
-# Set working directory inside the container
 WORKDIR /usr/src/app
 
-# Copy package.json and package-lock.json
+ENV NODE_ENV=production
+ENV PORT=3000
+
 COPY package*.json ./
 
-# Install dependencies
-RUN npm install
+RUN npm install --omit=dev && npm cache clean --force
 
-# Copy the rest of the application code
-COPY . .
+COPY --chown=node:node . .
 
-# Expose the port the app runs on
+USER node
+
 EXPOSE 3000
 
-# Define environment variables (you can override at runtime)
-ENV NODE_ENV=production
-
-# Start the application
 CMD ["node", "server.js"]

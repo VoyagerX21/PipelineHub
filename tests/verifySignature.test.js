@@ -1,7 +1,7 @@
-const { verifySignature } = require('../src/utils/verifySignature');
+const { verifyGitHubSignature } = require('../src/utils/verifySignature.js');
 const crypto = require('crypto');
 
-describe('verifySignature(req, secret)', () => {
+describe('verifyGitHubSignature(req, secret)', () => {
   const secret = 'mytestsecret';
   const payloadObj = { name: 'test', value: 123 };
   const payloadBuffer = Buffer.from(JSON.stringify(payloadObj));
@@ -21,7 +21,7 @@ describe('verifySignature(req, secret)', () => {
   };
 
   test('returns true for valid signature', () => {
-    const result = verifySignature(mockReq, secret);
+    const result = verifyGitHubSignature(mockReq, secret);
     expect(result).toBe(true);
   });
 
@@ -32,7 +32,7 @@ describe('verifySignature(req, secret)', () => {
         'x-hub-signature-256': 'sha256=invalid'
       }
     };
-    const result = verifySignature(req, secret);
+    const result = verifyGitHubSignature(req, secret);
     expect(result).toBe(false);
   });
 
@@ -41,7 +41,7 @@ describe('verifySignature(req, secret)', () => {
       ...mockReq,
       headers: {}
     };
-    const result = verifySignature(req, secret);
+    const result = verifyGitHubSignature(req, secret);
     expect(result).toBe(false);
   });
 });

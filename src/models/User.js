@@ -12,7 +12,7 @@ const userSchema = new mongoose.Schema(
       required: true,
       unique: true,
       lowercase: true,
-      trim: true
+      trim: true,
     },
 
     avatarUrl: {
@@ -24,6 +24,10 @@ const userSchema = new mongoose.Schema(
     },
 
     location: {
+      type: String
+    },
+
+    password: {
       type: String
     },
 

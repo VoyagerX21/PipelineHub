@@ -3,12 +3,14 @@ const OAuthAccount = require('../../models/OAuthAccount');
 const WebhookKey = require('../../models/WebhookKey');
 const bcrypt = require('bcrypt');
 const jwt = require("jsonwebtoken");
+const emailjs = require("@emailjs/nodejs");
+const Token = require('../../models/ForgetPassToken');
 
 const handleLogin = async (req, res) => {
     try {
-        const { username, password } = req.body;
+        const { email, password } = req.body;
 
-        const user = await User.findOne({ username });
+        const user = await User.findOne({ email });
 
         if (!user) {
             return res.status(404).json({
@@ -44,8 +46,8 @@ const handleLogin = async (req, res) => {
 
         res.cookie("token", token, {
             httpOnly: true,
-            secure: true,
-            sameSite: "none",
+            secure: false,
+            sameSite: "lax",
             maxAge: 7 * 24 * 60 * 60 * 1000
         });
 
@@ -84,14 +86,14 @@ const getMe = async (req, res) => {
             });
         }
 
-        res.json({
+        return res.json({
             success: true,
             authenticated: true,
             user
         });
 
     } catch (err) {
-        res.status(401).json({
+        return res.status(401).json({
             success: false,
             authenticated: false
         });
@@ -130,21 +132,195 @@ const getProviders = async (req, res) => {
             }
         }
 
-        res.json({
+        return res.json({
             success: true,
             providers
         });
 
     } catch (error) {
-        res.status(500).json({
+        return res.status(500).json({
             success: false,
             msg: "Failed to fetch providers"
         });
     }
 };
 
+const forgotPass = async (req, res) => {
+    try {
+        const { email } = req.body;
+        // email validation needs to be done whether this is an email or not
+        const user = await User.findOne({ email })
+        if (!user) {
+            return res.status(404).json({
+                success: true,
+                msg: "Invalid credentials"
+            })
+        }
+        const token = jwt.sign(
+            {
+                userId: user._id,
+                username: user.username
+            },
+            process.env.JWT_SECRET,
+            { expiresIn: "1h" }
+        );
+        const link = `${process.env.FRONTEND_URL}/reset-password/${token}`;
+        emailjs.init({
+            publicKey: process.env.EMAILJS_PUBLIC_KEY,
+            privateKey: process.env.EMAILJS_PRIVATE_KEY
+        });
+        const service_id = "service_2gjyb8j";
+        const template_id = "template_ppd75xv";
+        const templateParams = {
+            "email": user.email,
+            "link": link
+        }
+        await Token.create({
+            userId: user.id,
+            token
+        });
+
+        const result = await emailjs.send(
+            service_id,
+            template_id,
+            templateParams
+        );
+
+        if (result.status !== 200) {
+            await Token.deleteMany({userId: user._id})
+
+            return res.status(500).json({
+                success: false,
+                msg: "Email service failure"
+            });
+        }
+
+        return res.status(200).json({
+            success: true,
+            msg: "Verification link sent!"
+        });
+    } catch (e) {
+        return res.status(500).json({
+            success: false,
+            msg: "Internal server error"
+        })
+    }
+}
+
+const authenticateChangePass = async (req, res) => {
+    try {
+        token = req.params?.token;
+        if (!token) {
+            return res.status(401).json({
+                success: false,
+                msg: "Token missing"
+            })
+        }
+        try {
+            const decoded = jwt.verify(token, process.env.JWT_SECRET);
+            const user = await User.findById(decoded.userId);
+            if (!user) {
+                return res.status(401).json({
+                    success: false,
+                    authenticated: false
+                });
+            }
+            const tokenObj = await Token.findOne({ userId: decoded.userId });
+            if (tokenObj.token == token) {
+                return res.status(200).json({
+                    success: true,
+                    msg: "Token Verified"
+                })
+            }
+            else {
+                return res.status(401).json({
+                    success: true,
+                    msg: "token already used or expired"
+                })
+            }
+            return res.json({
+                success: true,
+                authenticated: true
+            });
+        } catch (err) {
+            return res.status(401).json({
+                success: false,
+                authenticated: false
+            });
+        }
+    } catch (e) {
+        return res.status(500).json({
+            success: false,
+            msg: "Internal server error"
+        })
+    }
+}
+
+const updatePass = async (req, res) => {
+    try {
+        const { password, token } = req.body;
+        if (!token && !password) {
+            return res.status(401).json({
+                success: false,
+                msg: "Request body missing"
+            })
+        }
+        if (!token || !password) {
+            return res.status(401).json({
+                success: false,
+                msg: "Required fields are missing"
+            })
+        }
+        try {
+            const decoded = jwt.verify(token, process.env.JWT_SECRET);
+            const user = await User.findById(decoded.userId);
+            if (!user) {
+                return res.status(401).json({
+                    success: false,
+                    authenticated: false
+                });
+            }
+            const tokenObj = await Token.findOne({ userId: decoded.userId });
+            if (tokenObj.token === token) {
+                const pass = await bcrypt.hash(password, 10);
+                user.password = pass;
+                await user.save();
+                await Token.deleteMany({userId: decoded.userId})
+                return res.status(200).json({
+                    success: true,
+                    msg: "Password updated"
+                })
+            }
+            else {
+                return res.status(401).json({
+                    success: true,
+                    msg: "token already used"
+                })
+            }
+            return res.json({
+                success: true,
+                authenticated: true,
+            });
+        } catch (err) {
+            console.log(err)
+            return res.status(401).json({
+                success: false,
+                authenticated: false
+            });
+        }
+    } catch (e) {
+        return res.status(500).json({
+            success: true,
+            msg: "Internal server Error"
+        })
+    }
+}
+
 module.exports = {
     handleLogin,
     getMe,
-    getProviders
+    getProviders,
+    forgotPass,
+    authenticateChangePass,
+    updatePass
 }

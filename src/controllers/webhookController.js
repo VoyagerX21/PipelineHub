@@ -348,10 +348,10 @@ const handleEvent = async (req, res) => {
             isValid = verifySignature.verifyGitHubSignature(req, secret);
         }
         
-        // if (!isValid){
-        //     console.log(`[${platform}] Signature verification failed`);
-        //     return res.status(401).json({msg: "Signature verification failed"});
-        // }
+        if (!isValid){
+            console.log(`[${platform}] Signature verification failed`);
+            return res.status(401).json({msg: "Signature verification failed"});
+        }
 
         let payload;
         try {

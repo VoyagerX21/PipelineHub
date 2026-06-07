@@ -84,6 +84,18 @@ const updateUserConfig = async (req, res) => {
     }
 };
 
+const passConfig = async (req, res) => {
+    try{
+        const userId = req.user?.userId;
+        
+    } catch (err) {
+        return res.status(500).json({
+            success: false,
+            msg: "Internal server error"
+        })
+    }
+}
+
 module.exports = {
     updateUserConfig
 }

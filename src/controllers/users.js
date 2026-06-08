@@ -1,6 +1,7 @@
 const User = require("../models/User");
 const Webhook = require('../models/Webhook');
 const axios = require('axios');
+const bcrypt = require('bcrypt');
 
 const verifySlackWebhook = async (url) => {
     try {
@@ -96,6 +97,40 @@ const passConfig = async (req, res) => {
     }
 }
 
+const updatePass = async (req, res) => {
+    try{
+        const { newPassword } = req.body;
+        if (!newPassword){
+            return res.status(400).json({
+                success: false,
+                msg: "Password is required"
+            })
+        }
+        const userId = req.params.userId;
+        const user = User.findById(userId);
+        if (!user){
+            return res.status(401).json({
+                success: false,
+                msg: "unauthorized"
+            })
+        }
+        const hashPass = await bcrypt.hash(newPassword, 10);
+        user.password = hashPass;
+        await user.save();
+        return res.status(200).json({
+            success: true,
+            msg: "Password updated"
+        })
+    } catch (e) {
+        console.log(e)
+        return res.status(500).json({
+            success: false,
+            msg: "Internal server Error"
+        })
+    }
+}
+
 module.exports = {
-    updateUserConfig
+    updateUserConfig,
+    updatePass
 }

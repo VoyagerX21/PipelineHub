@@ -315,11 +315,36 @@ const updatePass = async (req, res) => {
     }
 }
 
+const logout = async (req, res) => {
+    try {
+        res.clearCookie("token", {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+            sameSite: process.env.NODE_ENV === "production"
+                ? "none"
+                : "lax"
+        });
+
+        return res.status(200).json({
+            success: true,
+            msg: "Logged out successfully"
+        });
+
+    } catch (err) {
+        console.log(err);
+        return res.status(500).json({
+            success: false,
+            msg: "Internal server Error"
+        });
+    }
+};
+
 module.exports = {
     handleLogin,
     getMe,
     getProviders,
     forgotPass,
     authenticateChangePass,
-    updatePass
+    updatePass,
+    logout
 }

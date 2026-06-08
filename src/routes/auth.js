@@ -1,5 +1,5 @@
 const express = require('express');
-const { handleLogin, getMe, getProviders, forgotPass, authenticateChangePass, updatePass } = require('../controllers/auth/login.js');
+const { handleLogin, getMe, getProviders, forgotPass, authenticateChangePass, updatePass, logout } = require('../controllers/auth/login.js');
 const { githubLogin, githubCallback } = require('../controllers/auth/github.js');
 const { gitlabLogin, gitlabCallback } = require('../controllers/auth/gitlab.js');
 const { bitbucketLogin, bitbucketCallback } = require('../controllers/auth/bitbucket.js');
@@ -18,5 +18,6 @@ router.get("/providers/:userId", getProviders);
 router.post("/forgot", forgotPass);
 router.get("/verify/forgot/:token", authenticateChangePass);
 router.post("/updatePass", updatePass)
+router.post("/logout", logout);
 
 module.exports = router;

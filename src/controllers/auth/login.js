@@ -50,7 +50,9 @@ const handleLogin = async (req, res) => {
 
         return res.json({
             success: true,
-            msg: "Login successful"
+            msg: "Login successful",
+            authenticated: true,
+            user
         });
 
     } catch (error) {

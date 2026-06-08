@@ -15,10 +15,11 @@ const cors = require('cors');
 
 // Initialize the Express application
 const app = express();
-app.use(cors({
-  origin: "https://pipelinehubb.khakse.dev",
-  credentials: true
-}));
+// app.use(cors({
+//   origin: "https://pipelinehubb.khakse.dev",
+//   credentials: true
+// }));
+app.use(cors());
 app.use(cookieParser());
 
 // Initialization for the API documentation at route /api-docs using swagger.yaml

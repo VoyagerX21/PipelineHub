@@ -36,17 +36,14 @@ const handleLogin = async (req, res) => {
         }
 
         const token = jwt.sign(
-            {
-                userId: user._id,
-                username: user.username
-            },
+            { userId: user._id },
             process.env.JWT_SECRET,
             { expiresIn: "7d" }
         );
 
         res.cookie("token", token, {
             httpOnly: true,
-            secure: false,
+            secure: false, // set true in production
             sameSite: "lax",
             maxAge: 7 * 24 * 60 * 60 * 1000
         });
@@ -187,7 +184,7 @@ const forgotPass = async (req, res) => {
         );
 
         if (result.status !== 200) {
-            await Token.deleteMany({userId: user._id})
+            await Token.deleteMany({ userId: user._id })
 
             return res.status(500).json({
                 success: false,
@@ -285,7 +282,7 @@ const updatePass = async (req, res) => {
                 const pass = await bcrypt.hash(password, 10);
                 user.password = pass;
                 await user.save();
-                await Token.deleteMany({userId: decoded.userId})
+                await Token.deleteMany({ userId: decoded.userId })
                 return res.status(200).json({
                     success: true,
                     msg: "Password updated"

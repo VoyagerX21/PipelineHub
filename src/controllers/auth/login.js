@@ -151,7 +151,7 @@ const forgotPass = async (req, res) => {
         const user = await User.findOne({ email })
         if (!user) {
             return res.status(404).json({
-                success: true,
+                success: false,
                 msg: "Invalid credentials"
             })
         }

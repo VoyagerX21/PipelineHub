@@ -1,31 +1,40 @@
+
 services:
-  mongo:
-    image: mongo:7-jammy
+  app:
+    build: .
+    container_name: pipelinehub_app
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - MONGODB_URI=mongodb://mongodb:27017/pipelinehub
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    env_file:
+      - .env
+    depends_on:
+      - mongodb
+      - redis
     restart: unless-stopped
+
+  mongodb:
+    image: mongo:6
+    container_name: pipelinehub_mongo
     ports:
       - "27017:27017"
     volumes:
-      - mongo_data:/data/db
-    healthcheck:
-      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  app:
-    build:
-      context: .
-      dockerfile: Dockerfile
+      - mongodb_data:/data/db
     restart: unless-stopped
-    env_file:
-      - .env.example
-    environment:
-      NODE_ENV: production
+
+  redis:
+    image: redis:7-alpine
+    container_name: pipelinehub_redis
     ports:
-      - "3000:3000"
-    depends_on:
-      mongo:
-        condition: service_healthy
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
 
 volumes:
-  mongo_data:
+  mongodb_data:
+  redis_data:

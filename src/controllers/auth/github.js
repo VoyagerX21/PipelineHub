@@ -10,7 +10,7 @@ const githubLogin = (req, res) => {
     const redirectUrl =
         "https://github.com/login/oauth/authorize" +
         `?client_id=${process.env.GITHUB_CLIENT_ID}` +
-        "&scope=user:email" +
+        "&scope=user:email,repo,admin:repo_hook" +
         "&allow_signup=true";
 
     res.redirect(redirectUrl);
@@ -88,8 +88,13 @@ const githubCallback = async (req, res) => {
         let user;
 
         if (account) {
-            // Existing OAuth account
+            // Existing OAuth account - update accessToken and metadata
             user = await User.findById(account.userId);
+            account.accessToken = accessToken;
+            account.username = githubUser.login;
+            account.avatarUrl = githubUser.avatar_url;
+            account.profileUrl = githubUser.html_url;
+            await account.save();
         } else {
             // Find user by email
             user = await User.findOne({ email });
@@ -148,10 +153,12 @@ const githubCallback = async (req, res) => {
             { expiresIn: "7d" }
         );
 
+        const isProduction = process.env.NODE_ENV === "production";
+
         res.cookie("token", token, {
             httpOnly: true,
-            secure: false, // set true in production
-            sameSite: "lax",
+            secure: isProduction,
+            sameSite: isProduction ? "none" : "lax",
             maxAge: 7 * 24 * 60 * 60 * 1000
         });
 

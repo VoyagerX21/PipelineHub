@@ -12,11 +12,13 @@ const {
 } = require('../controllers/webhookPanel.js');
 
 
-router.get('/personal-dashboard/summary', handlegetSummary);
-router.get('/personal-dashboard/activity', handlegetActivity);
-router.get('/personal-dashboard/recent', handlegetRecent);
-router.get('/personal-dashboard/health', handlegetHealth);
-router.get('/webhooks', handlegetWebhooks);
+const { requireAuth } = require('../middleware/authMiddleware');
+
+router.get('/personal-dashboard/summary', requireAuth, handlegetSummary);
+router.get('/personal-dashboard/activity', requireAuth, handlegetActivity);
+router.get('/personal-dashboard/recent', requireAuth, handlegetRecent);
+router.get('/personal-dashboard/health', requireAuth, handlegetHealth);
+router.get('/webhooks', requireAuth, handlegetWebhooks);
 router.get('/dashboard/summary', handlegetSummaryGlobal);
 router.get('/dashboard/activity', handlegetActivityGlobal);
 router.get('/dashboard/health', handlegetHealthGlobal);

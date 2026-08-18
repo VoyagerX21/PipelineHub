@@ -169,8 +169,8 @@ const forgotPass = async (req, res) => {
             publicKey: process.env.EMAILJS_PUBLIC_KEY,
             privateKey: process.env.EMAILJS_PRIVATE_KEY
         });
-        const service_id = "service_2gjyb8j";
-        const template_id = "template_ppd75xv";
+        const service_id = process.env.EMAILJS_SERVICE_ID || "service_2gjyb8j";
+        const template_id = process.env.EMAILJS_TEMPLATE_ID || "template_ppd75xv";
         const templateParams = {
             "email": user.email,
             "link": link

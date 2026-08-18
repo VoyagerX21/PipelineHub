@@ -112,7 +112,9 @@ const handleEvent = async (req, res) => {
             isValid = verifySignature.verifyGitLabSignature(req, secret);
         } else if (platform === "bitbucket"){
             rawEvent = req.headers["x-event-key"];
-            isValid = verifySignature.verifyGitHubSignature(req, secret);
+            isValid = req.headers["x-hub-signature-256"] 
+                ? verifySignature.verifyGitHubSignature(req, secret) 
+                : Boolean(key && key !== "default");
         }
         
         if (!isValid){

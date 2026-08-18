@@ -63,22 +63,24 @@ const getUserContributionsByRepositories = async (req, res) => {
             .populate('userId', 'name email avatarUrl')
             .populate('repositoryId', 'name fullName provider');
 
-        const repos = contributions.map(c => ({
-            repository: {
-                id: c.repositoryId._id,
-                name: c.repositoryId.name,
-                fullName: c.repositoryId.fullName,
-                provider: c.repositoryId.provider
-            },
-            commits: c.commitCount,
-            pullRequests: c.pullRequestCount,
-            lastContributed: c.lastContributedAt,
-            firstContributed: c.firstContributedAt
-        }));
+        const repos = contributions
+            .filter(c => c.repositoryId)
+            .map(c => ({
+                repository: {
+                    id: c.repositoryId._id,
+                    name: c.repositoryId.name,
+                    fullName: c.repositoryId.fullName,
+                    provider: c.repositoryId.provider
+                },
+                commits: c.commitCount || 0,
+                pullRequests: c.pullRequestCount || 0,
+                lastContributed: c.lastContributedAt,
+                firstContributed: c.firstContributedAt
+            }));
 
         return res.status(200).json({
             userId,
-            userName: contributions[0]?.userId.name || 'Unknown',
+            userName: contributions[0]?.userId?.name || 'Unknown',
             repositoriesContributedTo: repos,
             total: repos.length,
             totalCommits: repos.reduce((sum, r) => sum + r.commits, 0),
@@ -116,12 +118,12 @@ const getContributorDetailedStats = async (req, res) => {
                 platformUsername: contributor.platformUsername,
                 isVerified: contributor.isVerified
             },
-            repository: {
+            repository: contributor.repositoryId ? {
                 id: contributor.repositoryId._id,
                 name: contributor.repositoryId.name,
                 fullName: contributor.repositoryId.fullName,
                 provider: contributor.repositoryId.provider
-            },
+            } : null,
             statistics: {
                 commitCount: contributor.commitCount,
                 pullRequestCount: contributor.pullRequestCount,

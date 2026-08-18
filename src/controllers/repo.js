@@ -102,8 +102,12 @@ const connectRepo = async (req, res) => {
             });
         }
 
-        // Use a placeholder domain or read from env for the payload URL
-        const domain = process.env.PUBLIC_DOMAIN || 'https://api.pipelinehub.com';
+        // Read domain from environment with production fallback
+        let domain = process.env.PUBLIC_DOMAIN || process.env.BACKEND_URL || 'https://pipelinehub.khakse.dev';
+        if (!domain.startsWith('http://') && !domain.startsWith('https://')) {
+            domain = `https://${domain}`;
+        }
+        domain = domain.replace(/\/+$/, '');
         const payloadUrl = `${domain}/webhook/${provider}/${webhookKeyDoc.key}`;
 
         // 5. Configure the webhook on GitHub via API

@@ -1,8 +1,7 @@
 const axios = require("axios");
 
-const slackUrl = process.env.SLACK_WEBHOOK_URL;
-
 async function sendSlackMessage(message) {
+  const slackUrl = process.env.SLACK_WEBHOOK_URL;
   if (!slackUrl) return;
 
   try {

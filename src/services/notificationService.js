@@ -1,8 +1,8 @@
 const axios = require('axios');
-const webhookUrl = process.env.SLACK_WEBHOOK_URL; // getting the URL from the .env
 
 exports.sendNotification = async (message) => {
-    if (!webhookUrl) return; // Double check for the URL to be present in the variable
+    const webhookUrl = process.env.SLACK_WEBHOOK_URL;
+    if (!webhookUrl) return;
 
     try {
         // post the message onto the Channel

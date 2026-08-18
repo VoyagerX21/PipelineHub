@@ -107,7 +107,7 @@ const updatePass = async (req, res) => {
             })
         }
         const userId = req.params.userId;
-        const user = User.findById(userId);
+        const user = await User.findById(userId);
         if (!user){
             return res.status(401).json({
                 success: false,

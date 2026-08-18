@@ -3,20 +3,7 @@ const Webhook = require('../models/Webhook.js');
 const jwt = require("jsonwebtoken");
 
 const handlegetActivity = async (req, res) => {
-    let userId = req.user?.userId;
-    if (!userId) {
-        const token = req.cookies?.token;
-
-        if (!token) {
-            return res.status(401).json({
-                success: false,
-                message: "Unauthorized",
-            });
-        }
-
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        userId = decoded.userId;
-    }
+    const userId = req.user.userId;
 
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
@@ -103,20 +90,7 @@ const handlegetActivityGlobal = async (req, res) => {
 };
 
 const handlegetHealth = async (req, res) => {
-    let userId = req.user?.userId;
-    if (!userId) {
-        const token = req.cookies?.token;
-
-        if (!token) {
-            return res.status(401).json({
-                success: false,
-                message: "Unauthorized",
-            });
-        }
-
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        userId = decoded.userId;
-    }
+    const userId = req.user.userId;
     const webhook = await Webhook.findOne({ userId });
     const lastSuccess = await WebhookDelivery
         .findOne({ status: "success", webhookId: webhook._id })
@@ -178,20 +152,7 @@ const handlegetHealthGlobal = async (req, res) => {
 }
 
 const handlegetRecent = async (req, res) => {
-    let userId = req.user?.userId;
-    if (!userId) {
-        const token = req.cookies?.token;
-
-        if (!token) {
-            return res.status(401).json({
-                success: false,
-                message: "Unauthorized",
-            });
-        }
-
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        userId = decoded.userId;
-    }
+    const userId = req.user.userId;
     const webhook = await Webhook.findOne({ userId });
     const deliveries = await WebhookDelivery
         .find({ webhookId: webhook._id })
@@ -211,20 +172,7 @@ const handlegetRecent = async (req, res) => {
 }
 
 const handlegetWebhooks = async (req, res) => {
-    let userId = req.user?.userId;
-    if (!userId) {
-        const token = req.cookies?.token;
-
-        if (!token) {
-            return res.status(401).json({
-                success: false,
-                message: "Unauthorized",
-            });
-        }
-
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        userId = decoded.userId;
-    }
+    const userId = req.user.userId;
     const webhooks = await Webhook.find({ userId });
     if (!webhooks) {
         const result = [];
@@ -258,20 +206,7 @@ const handlegetWebhooks = async (req, res) => {
 }
 
 const handlegetSummary = async (req, res) => {
-    let userId = req.user?.userId;
-    if (!userId) {
-        const token = req.cookies?.token;
-
-        if (!token) {
-            return res.status(401).json({
-                success: false,
-                message: "Unauthorized",
-            });
-        }
-
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        userId = decoded.userId;
-    }
+    const userId = req.user.userId;
 
     const webhook = await Webhook.findOne({ userId });
 

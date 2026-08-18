@@ -16,12 +16,14 @@ const pipelineRunSchema = new mongoose.Schema(
 
     status: {
       type: String,
-      enum: ["running", "success", "failed"],
-      default: "running",
+      enum: ["queued", "running", "success", "failed"],
+      default: "queued",
     },
 
     logs: String,
-
+    failureReason: String,
+    durationMs: Number,
+    
     startedAt: Date,
     completedAt: Date,
   },

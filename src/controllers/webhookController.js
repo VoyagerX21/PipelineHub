@@ -1,140 +1,7 @@
-// Import required dependencies
-const pipelineService = require('../services/pipelineService');
-const Event = require('../models/Event');
 const verifySignature = require('../utils/verifySignature');
-const { sendNotification } = require('../services/notificationService');
 const Event2 = require("../models/Event2");
-const Commit = require("../models/Commit");
-const Repository = require('../models/Repository');
-const WebhookKey = require("../models/WebhookKey");
-const User = require("../models/User");
-const { processEvent } = require('../services/eventProcessor');
-const { trackContribution } = require('../services/contributorService');
 
-// Handles incoming GitHub webhook events
-const handleGitHubWebhook = async (req, res) => {
-    const platform = req.platform;
-    const secret = process.env.WEBHOOK_SECRET; // Webhook secret from environment variables // GitHub event type from headers
-    let isValid = false;
 
-    // Parse incoming request body as JSON
-    let json;
-    try {
-        json = JSON.parse(req.body.toString());
-    } catch (err) {
-        return res.status(400).json({ message: 'Invalid JSON' });
-    }
-
-    // Step 1: Verify webhook signature for security
-    if (platform === 'github') {
-        isValid = verifySignature.verifyGitHubSignature(req, secret);
-    } else if (platform === 'gitlab') {
-        isValid = verifySignature.verifyGitLabSignature(req, secret);
-    } else if (platform === 'bitbucket') {
-        isValid = true; // or custom logic
-    }
-    if (!isValid) return res.status(401).send('Invalid signature');
-    const event = req.headers['x-github-event'] || req.headers['x-gitlab-event'] || req.headers['x-event-key'];
-
-    const supportedEvents = {
-        github: ['push', 'pull_request', 'merge', 'workflow_run'],
-
-        gitlab: [
-            'Push Hook',
-            'Tag Push Hook',
-            'Merge Request Hook',
-            'Pipeline Hook'
-        ],
-
-        bitbucket: [
-            'repo:push',
-            'pullrequest:created',
-            'pullrequest:updated',
-            'pullrequest:merged'
-        ]
-    };
-
-    // Step 2: Filter for supported GitHub events
-    if (!supportedEvents[platform]?.includes(event)) {
-        console.log(`[${platform}] ${event} event ignored`);
-        return res.status(200).json({
-            message: `Event ${event} ignored`
-        });
-    }
-
-    // Step 3: Trigger CI/CD pipeline and log event
-    try {
-        // console.log(json);
-        console.log(req.body);
-        
-        // Track contributor from webhook payload without creating User records.
-        let contributionResult = null;
-        
-        // Get repository info
-        let repositoryId = null;
-        if (json.repository || json.project) {
-            const repo = await Repository.findOne({
-                provider: platform,
-                externalRepoId: json.repository.id?.toString() || json.project?.id?.toString()
-            });
-            repositoryId = repo?._id;
-        }
-        
-        await pipelineService.triggerPipeline(event, json, platform);
-        
-        if (repositoryId) {
-            contributionResult = await trackContribution(json, repositoryId, platform, event);
-        }
-
-        // Create event with pusher reference
-        await Event.create({
-            platform: platform,
-            eventType: event,
-            repository: json.repository?.full_name || json.project?.path_with_namespace,
-            repositoryId: repositoryId,
-            pusherId: contributionResult?.verifiedUser?._id,
-            pusherName: contributionResult?.pusherInfo?.name,
-            message: json.head_commit?.message,
-            status: 'triggered'
-        });
-
-        return res.status(200).json({ message: `Pipeline triggered for ${event}` });
-    }
-    catch (err) {
-        console.error('Webhook handler error:', err);
-
-        // Log failed pipeline trigger
-        let contributionResult = null;
-        
-        let repositoryId = null;
-        if (json.repository || json.project) {
-            const repo = await Repository.findOne({
-                provider: platform,
-                externalRepoId: json.repository.id?.toString() || json.project?.id?.toString()
-            });
-            repositoryId = repo?._id;
-        }
-
-        if (repositoryId) {
-            contributionResult = await trackContribution(json, repositoryId, platform, event);
-        }
-        
-        await Event.create({
-            platform: platform,
-            eventType: event,
-            repository: json.repository?.full_name || json.project?.path_with_namespace,
-            repositoryId: repositoryId,
-            pusherId: contributionResult?.verifiedUser?._id,
-            pusherName: contributionResult?.pusherInfo?.name,
-            message: json.head_commit?.message,
-            status: 'failed',
-            retries: 0,
-            lastRetry: new Date()
-        });
-        await sendNotification(`❌ Pipeline failed for event: *${event}* in *${json.repository?.full_name}*`);
-        return res.status(500).json({ message: 'Pipeline trigger failed' });
-    }
-};
 
 const normalizeEventType = (platform, rawEvent, payload) => {
     if (platform === "github") {
@@ -178,164 +45,64 @@ const normalizeEventType = (platform, rawEvent, payload) => {
     return null;
 };
 
-const getUserFromWebhookKey = async (platform, key) => {
-    const webhook = await WebhookKey.findOne({
-        key,
-        provider: platform
-    }).populate("userId");
-
-    if (!webhook) {
-        throw new Error("Invalid webhook key");
-    }
-    return webhook.userId;
-};
-
-const upsertRepository = async (platform, payload, ownerId) => {
-    let repoData = {};
-
-    if (platform === "github") {
-        repoData = {
-            provider: "github",
-            externalRepoId: payload.repository.id.toString(),
-            name: payload.repository.name,
-            fullName: payload.repository.full_name,
-            ownerId,
-            defaultBranch: payload.repository.default_branch,
-            isPrivate: payload.repository.private
-        };
-    }
-
-    if (platform === "gitlab") {
-        repoData = {
-            provider: "gitlab",
-            externalRepoId: payload.project.id.toString(),
-            name: payload.project.name,
-            fullName: payload.project.path_with_namespace,
-            ownerId,
-            defaultBranch: payload.project.default_branch,
-            isPrivate: payload.project.visibility !== "public"
-        };
-    }
-
-    if (platform === "bitbucket") {
-        repoData = {
-            provider: "bitbucket",
-            externalRepoId: payload.repository.uuid,
-            name: payload.repository.name,
-            fullName: payload.repository.full_name,
-            ownerId,
-            defaultBranch: payload.push?.changes[0]?.new?.name,
-            isPrivate: payload.repository.is_private
-        };
-    }
-
-    return await Repository.findOneAndUpdate(
-        { provider: repoData.provider, externalRepoId: repoData.externalRepoId },
-        repoData,
-        { upsert: true, new: true }
-    );
-};
-
-const createEvent = async (
-    platform,
-    normalizedType,
-    payload,
-    repositoryId,
-    senderId,
-    rawEvent
-) => {
-    return await Event2.create({
-        provider: platform,
-        type: normalizedType,
-        rawEvent,
-        repositoryId,
-        senderId,
-        branch:
-            payload.ref ||
-            payload.object_attributes?.source_branch ||
-            payload.pullrequest?.source?.branch?.name ||
-            payload.push?.changes[0]?.new?.name,
-
-        before: payload.before,
-        after: payload.after,
-
-        eventTimestamp: new Date(),
-        rawPayload: payload
-    });
-};
-
-const createCommitsIfAny = async (
-    platform,
-    payload,
-    repositoryId,
-    eventId
-) => {
-    let commits = [];
-
-    if (platform === "github" && payload.commits) {
-        commits = payload.commits.map(c => ({
-            commitId: c.id,
-            repositoryId,
-            eventId,
-            message: c.message,
-            authorName: c.author?.name,
-            authorEmail: c.author?.email,
-            authorDate: c.timestamp,
-            addedFiles: c.added || [],
-            removedFiles: c.removed || [],
-            modifiedFiles: c.modified || []
-        }));
-    }
-
-    if (platform === "gitlab" && payload.commits) {
-        commits = payload.commits.map(c => ({
-            commitId: c.id,
-            repositoryId,
-            eventId,
-            message: c.message,
-            authorName: c.author?.name,
-            authorEmail: c.author?.email,
-            authorDate: c.timestamp,
-            addedFiles: c.added || [],
-            removedFiles: c.removed || [],
-            modifiedFiles: c.modified || []
-        }));
-    }
-
-    if (platform === "bitbucket" && payload.push?.changes) {
-        payload.push.changes.forEach(change => {
-            change.commits?.forEach(c => {
-                commits.push({
-                    commitId: c.hash,
-                    repositoryId,
-                    eventId,
-                    message: c.message,
-                    authorName: c.author?.user?.display_name,
-                    authorEmail: null,
-                    authorDate: c.date,
-                    addedFiles: [],
-                    removedFiles: [],
-                    modifiedFiles: []
-                });
-            });
-        });
-    }
-
-    if (commits.length > 0) {
-        await Commit.insertMany(commits, { ordered: false });
-    }
-};
+const Repository = require("../models/Repository");
 
 const handleEvent = async (req, res) => {
     try {
         const platform = req.platform;
         const key = req.params.key;
-        const secret = process.env.WEBHOOK_SECRET;
         
-        let isValid = false;
         let rawEvent;
+        const bodyBuffer = Buffer.isBuffer(req.body) ? req.body : Buffer.from(req.body);
 
-        console.log(req.body.toString());
+        let payload;
+        try {
+            payload = JSON.parse(bodyBuffer.toString());
+        } catch (err) {
+            console.error(`[${platform}] Failed to parse payload:`, err.message);
+            return res.status(400).json({msg: "Invalid JSON payload"});
+        }
+
+        // Extract repository ID and full name based on platform
+        let externalRepoId = null;
+        let repoFullName = null;
+
+        if (platform === "github" && payload.repository) {
+            externalRepoId = payload.repository.id ? payload.repository.id.toString() : null;
+            repoFullName = payload.repository.full_name;
+        } else if (platform === "gitlab" && payload.project) {
+            externalRepoId = payload.project.id ? payload.project.id.toString() : null;
+            repoFullName = payload.project.path_with_namespace;
+        } else if (platform === "bitbucket" && payload.repository) {
+            externalRepoId = payload.repository.uuid;
+            repoFullName = payload.repository.full_name;
+        }
+
+        // Retrieve dynamic webhook secret from DB, fallback to ENV
+        let secret = process.env.WEBHOOK_SECRET;
+        let repo = null;
+
+        if (externalRepoId) {
+            repo = await Repository.findOne({ provider: platform, externalRepoId });
+        }
+
+        if (!repo && repoFullName) {
+            repo = await Repository.findOne({
+                provider: platform,
+                fullName: new RegExp(`^${repoFullName}$`, 'i')
+            });
+        }
+
+        if (repo && repo.webhookSecret) {
+            secret = repo.webhookSecret;
+            // Sync externalRepoId if it wasn't set or was different
+            if (externalRepoId && repo.externalRepoId !== externalRepoId) {
+                repo.externalRepoId = externalRepoId;
+                await repo.save();
+            }
+        }
+
+        let isValid = false;
 
         if (platform === "github"){
             rawEvent = req.headers["x-github-event"];
@@ -353,15 +120,6 @@ const handleEvent = async (req, res) => {
             return res.status(401).json({msg: "Signature verification failed"});
         }
 
-        let payload;
-        try {
-            const bodyBuffer = Buffer.isBuffer(req.body) ? req.body : Buffer.from(req.body);
-            payload = JSON.parse(bodyBuffer.toString());
-        } catch (err) {
-            console.error(`[${platform}] Failed to parse payload:`, err.message);
-            return res.status(400).json({msg: "Invalid JSON payload"});
-        }
-
         const normalizedType = normalizeEventType(
             platform,
             rawEvent,
@@ -375,47 +133,22 @@ const handleEvent = async (req, res) => {
             });
         }
 
-        const user = await getUserFromWebhookKey(platform, key);
-        if (!user) {
-            return res.status(401).json({ message: "Invalid webhook key" });
-        }
-        
-        const repository = await upsertRepository(
-            platform,
-            payload,
-            user._id
-        );
+        const { enqueueWebhookEvent } = require('../queues/webhookQueue');
 
-        if (normalizedType === "push" || normalizedType === "pull_request") {
-            await trackContribution(payload, repository._id, platform, normalizedType);
-        }
-
-        const event = await createEvent(
+        await enqueueWebhookEvent({
             platform,
+            key,
+            rawEvent,
             normalizedType,
-            payload,
-            repository._id,
-            user._id,
-            rawEvent
-        );
-
-        if (normalizedType === "push") {
-            await createCommitsIfAny(
-                platform,
-                payload,
-                repository._id,
-                event._id
-            );
-        }
-
-        await processEvent(event, payload, user, repository);
+            payload
+        });
 
         console.log(
-            `[${platform}] Processed ${normalizedType} event successfully`
+            `[${platform}] Event ${normalizedType} queued for processing`
         );
 
-        return res.status(200).json({
-            message: "Event processed successfully"
+        return res.status(202).json({
+            message: "Event queued for processing"
         });
 
     } catch (error) {
@@ -467,4 +200,7 @@ const getPipelineStatus = async (req, res) => {
 };
 
 // Export controller functions
-module.exports = { handleGitHubWebhook, getPipelineStatus, handleEvent };
+module.exports = { 
+    getPipelineStatus, 
+    handleEvent
+};

@@ -31,6 +31,9 @@ const repositorySchema = new mongoose.Schema(
 
         defaultBranch: String,
         isPrivate: Boolean,
+        webhookSecret: {
+            type: String
+        }
     },
     { timestamps: true }
 );

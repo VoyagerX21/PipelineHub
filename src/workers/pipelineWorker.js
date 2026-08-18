@@ -79,14 +79,14 @@ const pipelineWorker = new Worker('pipeline-queue', async job => {
     commit_sha: commitSha,
     branch: branch,
     status: pipelineRun.status,
-    duration_ms: pipelineRun.durationMs
+    duration_ms: pipelineRun.durationMs,
+    failure_reason: pipelineRun.failureReason
   });
   
-  if (ciResult.status !== 'success') {
-      throw new Error(ciResult.error || 'Pipeline failed');
-  }
-  
-  return { status: ciResult.status };
+  return { 
+    status: ciResult.status,
+    pipeline_id: pipelineRun._id.toString() 
+  };
 }, { 
   connection: redisConnection,
   concurrency: 2 // Limit concurrency for CI jobs

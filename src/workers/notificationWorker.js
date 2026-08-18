@@ -4,7 +4,7 @@ const axios = require('axios');
 const Repository = require('../models/Repository');
 
 const notificationWorker = new Worker('notification-queue', async job => {
-  const { pipeline_id, repository_id, commit_sha, branch, status, duration_ms } = job.data;
+  const { pipeline_id, repository_id, commit_sha, branch, status, duration_ms, failure_reason } = job.data;
   console.log(`[Notification Worker] Processing job ${job.id} for pipeline ${pipeline_id}`);
   
   const webhookUrl = process.env.SLACK_WEBHOOK_URL;
@@ -26,7 +26,7 @@ const notificationWorker = new Worker('notification-queue', async job => {
   const durationStr = duration_ms ? `${(duration_ms / 1000).toFixed(1)}s` : 'unknown';
   const icon = status === 'success' ? '✅' : '❌';
   
-  const message = `${icon} *Pipeline completed*
+  let message = `${icon} *Pipeline completed*
 
 *Repository:* ${repoName}
 *Branch:* ${branch || 'unknown'}
@@ -34,6 +34,10 @@ const notificationWorker = new Worker('notification-queue', async job => {
 *Status:* ${status.toUpperCase()}
 *Duration:* ${durationStr}
 `;
+
+  if (status !== 'success' && failure_reason) {
+    message += `*Reason:* ${failure_reason}\n`;
+  }
 
   try {
     await axios.post(webhookUrl, { text: message });

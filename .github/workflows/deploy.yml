@@ -47,8 +47,8 @@ jobs:
 
             cd ~/apps/pipelinehub
 
-            docker compose pull backend
-            docker compose up -d backend
+            docker compose pull app
+            docker compose up -d app
 
             echo "Waiting for PipelineHub backend..."
 
